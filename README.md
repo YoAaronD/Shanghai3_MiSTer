@@ -65,12 +65,13 @@ microrom.mem, nanorom.mem fx68k microcode (Quartus loads them from the project f
 
 ## Running the simulation
 
-You need Linux (or WSL on Windows), Verilator 5.x, Python 3 and g++.
+You need Linux (or WSL on Windows), Verilator 5.x, Python 3 and g++. In a fresh Claude cloud sandbox, `scripts/setup_sandbox.sh` installs everything.
 
 ```
 scripts/sim.sh test       # boots the 68000 on a small test program and checks results
 scripts/blit_test.sh      # HDL blitter vs software blitter, pixel-for-pixel (needs ROMs, see below)
 scripts/crt_test.sh       # CRT Adjust: every H-Size at both H-Position extremes + V-Shift (~3 min)
+scripts/oki_test.sh       # OKI samples via download -> SDRAM vs. direct ROM, all 56 phrases (~20 min; --max N for less)
 ```
 
 Expected output ends with `0 failure(s)`. The test checks reset, RAM, palette writes, the protection sequence, the input ports, DIP reads through the YM2149, the blitter registers, and one vblank interrupt per frame.
@@ -163,6 +164,12 @@ Frames are written as `.ppm` images (384 × 224). Most image viewers open them.
   - "ROM 2 CHECK OK" appears 5 frames later than with the direct ROM port. The boot ROM checksum reads the whole program ROM as data, which misses the CPU cache every 4th word. Normal game code runs from the cache.
 - Audio (full board, 32 s): attract mode is silent by design (the game writes YM2149 register 7 = 0x3F, all channels off). The demo game turns on YM2149 music (register 7 = 0x38) and OKI effects. The output peaks at 18% of full scale with no clipping. The game now sends OKI "stop" commands because it sees real channel-busy bits; the reference model's OKI stub always reported idle.
 - Timing: `Shanghai3.sdc` relaxes paths inside fx68k to 3 clocks, because its registers only update on phase enables, every 3rd clock. Two blitter multiplies were narrowed to single DSP blocks. All blitter tests are still pixel-exact.
+
+**OKI samples through SDRAM (`scripts/oki_test.sh`)**
+
+- Two jt6295 chips receive identical commands. One reads samples through the real path (download → `shangha3_mem` → `sdram.sv` → SDRAM model); the other reads the ROM directly. Their outputs must match sample for sample.
+- **Bug found and fixed:** after each "start" command, jt6295 reads 6 bytes from the phrase table, and it drops the next command if that lookup is still running. The game writes OKI commands 2 µs apart, but SDRAM-speed lookups took longer. The 1 KB phrase table is now also kept in block RAM, filled during the download. Sample data stays in SDRAM.
+- Result: all 56 phrases, at the game's 2 µs command spacing, under heavy background SDRAM traffic (111 M blitter rows, 1.2 M CPU cache misses). 19.9 M samples (18.9 s): identical, with no busy-flag differences.
 
 **CRT Adjust**
 

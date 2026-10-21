@@ -191,23 +191,49 @@ module shangha3_mem (
     end
 
     // ------------------------------------------------------------------
-    // OKI samples: one byte at a time; ok only while the address is unchanged
+    // OKI samples: one byte at a time; ok only while the address is unchanged.
+    //
+    // The phrase table (first 1 KB of the sample ROM) is also kept in block RAM,
+    // filled during the download. jt6295 reads 6 table bytes after every "start"
+    // command and drops the next command if that lookup is still running. The
+    // game writes OKI commands 2 us apart, too fast for SDRAM-speed lookups,
+    // so table reads must be as fast as a direct ROM. Sample data is read
+    // within a ~750-clock window and stays in SDRAM. (Found by sim/oki_tb.cpp.)
     // ------------------------------------------------------------------
+    logic [7:0]  oki_tbl [0:1023];
+    logic [7:0]  oki_tbl_q;
+    always_ff @(posedge clk) begin
+        if (ioctl_download && ioctl_wr && ioctl_index == 16'd0 &&
+            ioctl_addr >= OKI_BASE && ioctl_addr < OKI_BASE + 27'h400)
+            oki_tbl[ioctl_addr[9:0]] <= ioctl_dout;
+        oki_tbl_q <= oki_tbl[oki_rom_addr[9:0]];
+    end
     logic        oki_busy;
     logic [17:0] oki_cur, oki_req_addr;
+    wire         oki_in_tbl = (oki_cur[17:10] == 8'd0);
+    logic [1:0]  oki_tbl_wait;
     always_ff @(posedge clk) begin
         if (reset) begin
-            oki_busy   <= 1'b0;
-            ch1_req    <= 1'b0;
-            oki_rom_ok <= 1'b0;
-            oki_cur    <= '1;
+            oki_busy     <= 1'b0;
+            ch1_req      <= 1'b0;
+            oki_rom_ok   <= 1'b0;
+            oki_cur      <= '1;
+            oki_tbl_wait <= '0;
         end else begin
             if (oki_rom_addr != oki_cur) begin
-                oki_cur    <= oki_rom_addr;
-                oki_rom_ok <= 1'b0;
+                oki_cur      <= oki_rom_addr;
+                oki_rom_ok   <= 1'b0;
+                oki_tbl_wait <= 2'd2;
+            end else if (oki_in_tbl && !oki_rom_ok) begin
+                // table: oki_tbl_q follows the address one clock later
+                if (oki_tbl_wait != 2'd0) oki_tbl_wait <= oki_tbl_wait - 2'd1;
+                else begin
+                    oki_rom_data <= oki_tbl_q;
+                    oki_rom_ok   <= 1'b1;
+                end
             end
             if (!oki_busy) begin
-                if (!oki_rom_ok && oki_rom_addr == oki_cur) begin
+                if (!oki_rom_ok && oki_rom_addr == oki_cur && !oki_in_tbl) begin
                     oki_req_addr <= oki_cur;
                     ch1_addr     <= 26'((OKI_BASE + {9'b0, oki_cur}) >> 1);
                     ch1_req      <= 1'b1;
