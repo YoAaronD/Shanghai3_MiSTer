@@ -8,7 +8,7 @@
   - Has no measuring tools beyond basic electrical ones.
   - Wants to build **several more arcade cores** after this one.
 - **Friend:** Kyle (github.com/kyledlester) has built several MiSTer arcade cores with AI assistance. His Nostradamus core was the model for this project's workflow and CRT Adjust glue.
-- **State:** the core is written and verified in simulation end to end (CPU, blitter, video, sound, SDRAM, MiSTer download, CRT Adjust). It has **not yet been compiled in Quartus or run on a MiSTer**.
+- **State:** the core is written and verified in simulation end to end (CPU, blitter, video, sound, SDRAM, MiSTer download, CRT Adjust). First Quartus build (2026-10-20) ran out of block RAM; fixed by moving the display buffer to DDR3 (rebuild pending). Not yet run on a MiSTer.
 
 ---
 
@@ -41,17 +41,17 @@
 |---|---|---|
 | 68000 CPU (fx68k), memory map, I/O, IRQ, protection | Done | High: 1.17 M CPU writes identical to the reference model during boot |
 | GA9201 blitter (sprites, zoom, tilemaps, shadows, flip) | Done | High: pixel-exact on 587 real blitter runs |
-| Frame buffers + palette video out | Done | High: full-board video matches the reference through the title and demo |
+| Frame buffers + palette video out | Done | High: full-board video matches the reference through the title and demo. Display buffer now in DDR3 (see §4); frames identical to the all-BRAM version in simulation |
 | YM2149 (jt49), DIPs through its ports | Done | High |
 | OKI M6295 (jt6295) | Done | High: all 56 phrases through download → SDRAM match a direct-ROM chip sample for sample, at game command speed under heavy SDRAM load |
 | ROM download to SDRAM, CPU cache, SDRAM controller | Done | Medium-high: simulated with a pin-level SDRAM model. Real SDRAM clock phase is untested. |
 | CRT Adjust (analog H-Size / H-Position / V-Shift) | Done | High in simulation: 59-setting bench passes |
-| MiSTer wrapper (`Shanghai3.sv`), Quartus project, MRA | Written | **Untested:** never synthesized. Quartus can't be installed in the sandbox. |
+| MiSTer wrapper (`Shanghai3.sv`), Quartus project, MRA | Written | First Quartus build (2026-10-20): synthesis OK, **Fitter failed: out of M10K block RAM**. Fixed by moving the display buffer to DDR3; rebuild pending. |
 | Real hardware | Not yet | — |
 
-**Next action:** Aaron's first Quartus build (Quartus Prime Lite 17.0.2 with Cyclone V; open `Shanghai3.qpf`; Processing → Start Compilation). Report:
+**Next action:** Aaron rebuilds in Quartus (Prime Lite 17.0.2; `Shanghai3.qpf`; Processing → Start Compilation) after pulling the DDR3 display-buffer change. Report:
 1. the first red error, or, if it builds,
-2. "Total block memory bits" and any red timing paths. Then test on the MiSTer (install steps are in `README.md`).
+2. from Compilation Report → Fitter → Resource Section → **Resource Usage Summary**: the "M10K blocks" line, and any red timing paths (TimeQuest). Then test on the MiSTer (install steps are in `README.md`).
 
 ---
 
@@ -77,6 +77,11 @@
     - The reused cores are vendored as plain files, and the project is GPL-3.0.
     - Pushed by Aaron from GitHub Desktop, because the sandbox can't push to repos not attached to the session.
 13. **OKI-through-SDRAM test** (`scripts/oki_test.sh`). It found a real bug: jt6295 drops commands while it is still reading its phrase table. Fixed with a 1 KB block-RAM copy of the table. Verified on all 56 phrases (19.9 M samples identical).
+14. **First Quartus build** (Aaron's PC, Quartus Prime Lite 17.0.2). Synthesis passed; the Fitter failed with error 170048: the design needs more than the 553 M10K blocks. Fix: the display frame buffer moved from BRAM to the MiSTer's DDR3, with a DDR3 model added to both Verilator benches. 1,900 simulated frames are identical to the all-BRAM design.
+15. **Real MAME as a reference.** Built a headless single-driver MAME in the sandbox (`scripts/build_mame.sh`, about 2 h). `tools/mame/frame_log.lua` saves every frame and logs blitter starts; `scripts/mame_latency.py` compares them with the board sim. Results:
+    - **Confirmed: the core shows each blitter run's result one frame later than MAME** (700 of 700 matched animation frames, +1 in every case; see §10).
+    - At that offset, 905 of 1,001 frames (frames 700–1700) are pixel-identical to MAME. The rest differ during title-screen transitions, some by only a few color levels. Not investigated yet (§10).
+16. **Steering files for future sessions:** `CLAUDE.md` (repo root, read automatically by Claude) and `docs/SAME_BOARD_GAMES.md` (plan for Hebereke no Popoon and Blocken).
 
 ---
 
@@ -161,7 +166,7 @@ All logic runs on one **96 MHz** clock (2 × 48 MHz) with clock enables.
 |---|---|
 | `rtl/shangha3_board.sv` | The PCB: fx68k, address decode, work RAM (dual port), palette RAM (dual port), I/O, protection, IRQ, jt49, jt6295 + mixer, CPU write arbitration against the blitter |
 | `rtl/shangha3_blitter.sv` | GA9201 re-creation (two-phase, see below) |
-| `rtl/shangha3_video.sv` | Draw buffer + display buffer (each 384 × 224 × 12 bit), vblank copy, palette scan-out |
+| `rtl/shangha3_video.sv` | Draw buffer (384 × 224 × 12 bit, BRAM), vblank copy to the display buffer in DDR3, line prefetch into a 2-line BRAM buffer, palette scan-out |
 | `rtl/shangha3_video_timing.sv` | Counters, blanking, placeholder syncs, `vblank_next` for CRT Adjust |
 | `rtl/shangha3_mem.sv` | ROM download writer, 68000 program cache, tile-row port, OKI port with a block-RAM phrase table |
 | `rtl/sdram.sv` | Sorgelig's 4-channel SDRAM controller (GPL-3.0, MiSTer-devel/Arcade-IremM92_MiSTer @68a4683), with Verilator-only port splitting |
@@ -184,7 +189,10 @@ All logic runs on one **96 MHz** clock (2 × 48 MHz) with clock enables.
 
   The worst case is about 16.8% of a frame.
 - **CPU write arbitration:** a CPU write waits only for RAM words the snapshot hasn't copied yet (`scan_from`, `tm_from`). This matches MAME's instantaneous blitter; CPU loss is about 0.01%.
-- **Frame buffers:** draw → display copy at vblank start (0.9 ms of the 2.5 ms vblank). Drawing waits during the copy; snapshotting doesn't. Tear-free, with MAME's frame latency.
+- **Frame buffers:** draw → display copy at vblank start (0.9 ms of the 2.5 ms vblank). Drawing waits while the draw buffer is read; snapshotting doesn't. Tear-free, but one frame later than MAME (measured; see §10, item 2).
+  - The display buffer lives in the MiSTer's DDR3 (`DDRAM_*` port, byte address 0x30000000, `DDRAM_CLK` = the 96 MHz core clock). The copy packs 4 pixels per 64-bit word (96 words per line), goes through a 128-word FIFO (MLAB) and is written in 8-word bursts. Scan-out reads each line during the previous line (12 bursts of 8) into a 2-line BRAM buffer. The screen stays black until the first complete copy.
+  - Why: the first Quartus fit ran out of M10K blocks with both buffers in BRAM (each is about 126–132 M10K).
+  - Simulated with `sim/ddr_model.h` (random waitrequest, stalls of 50–250 clocks, 10–50 clock read latency). Over 1,900 frames (32 s of attract), every captured frame and all 9.44 M CPU writes, with timestamps, match the all-BRAM design. The end-to-end run (download → SDRAM → boot → DDR3 video) also matches. A 16-word FIFO was too small: DDR3 stalls slowed the copy and with it the blitter (by up to 213 µs). That is why the FIFO is 128 words.
 - **SDRAM layout (bytes):**
   - 000000 program (big-endian words)
   - 080000 graphics (little-endian words)
@@ -201,7 +209,9 @@ All logic runs on one **96 MHz** clock (2 × 48 MHz) with clock enables.
 
 | Item | Size |
 |---|---|
-| Frame buffers | 2 × 1.03 Mbit |
+| Draw buffer | 1.03 Mbit (about 126–132 M10K) |
+| Display buffer | in DDR3 (was another 1.03 Mbit) |
+| Line buffer + copy FIFO | about 2 M10K |
 | Command snapshot | 352 Kbit |
 | Tilemap snapshot | 128 Kbit |
 | Work RAM | 512 Kbit |
@@ -209,9 +219,13 @@ All logic runs on one **96 MHz** clock (2 × 48 MHz) with clock enables.
 | Cache | about 36 Kbit |
 | OKI table | 8 Kbit |
 | CRT Adjust | about 1 M10K |
-| **Total** | **about 3.15 Mbit of 5.6 Mbit**, before the MiSTer framework |
+| **Total** | **about 2.1 Mbit (about 270 M10K of 553)**, before the MiSTer framework |
 
-  This is the biggest fit risk. The fallback is moving the display buffer to DDR.
+  The first fit (both frame buffers in BRAM, about 395 M10K for the core) failed: core plus framework needed more than 553 M10K. Moving the display buffer to DDR3 frees about 130.
+  If it still doesn't fit, the next levers, in order:
+  1. Uncomment `MISTER_DISABLE_ADAPTIVE` in `Shanghai3.qsf` (drops the HDMI scaler's adaptive-scanline line buffers; few people use it).
+  2. Shrink `cmdbuf` in the blitter from 2048 to 1024 commands (about 18 M10K; the game uses at most 614 valid commands).
+  3. `MISTER_DISABLE_ALSA` (small).
 
 ---
 
@@ -224,6 +238,9 @@ All logic runs on one **96 MHz** clock (2 × 48 MHz) with clock enables.
 | `scripts/sim.sh test` | 68000 boots a hand-assembled test ROM; 13 automated checks | ~15 s |
 | `scripts/sim.sh game N [--frames-out DIR --every K --wav F --no-rom-log --log-from F]` | Full board on the real ROMs (served directly); bus trace, frames, audio | ~1.25 s per frame |
 | `scripts/sim_top.sh ROMDIR N [--frames-out DIR --every K --check-sdram --wav F]` | **End to end:** emulated MiSTer download → pin-level SDRAM model → boot from SDRAM | ~1.3–2 s per frame |
+| `scripts/build_mame.sh` | Builds SDL2 + a headless MAME with only this driver (`/opt/src/mame/s3`) | ~2 h once |
+| `S3_OUT=DIR /opt/src/mame/s3 shangha3j -rompath R -video none -sound none -nothrottle -snapview native -autoboot_script tools/mame/frame_log.lua` | Real MAME: every frame as PNG + blitter-start log (`-wavwrite F` for audio) | ~10 s for 1,700 frames |
+| `scripts/mame_latency.py MAME_DIR HDL_DIR TRACE [first last]` | Frame latency of the core vs. MAME (HDL frames from `sim.sh game N --frames-out DIR --every 1`) | ~1 min |
 | `scripts/blit_test.sh EVERY MAX [--dump-filter zoom\|tilemap]` (`LATENCY=16` env) | Replays real blitter runs through the HDL blitter; pixel-exact check | seconds to minutes |
 | `scripts/oki_test.sh [--no-stress] [--max N] [--gap CLK] [--wav F]` | Two jt6295s, one through download → SDRAM, one direct; every valid phrase, sample-for-sample | ~1 min (`--max 8 --no-stress`), ~20 min full |
 | `scripts/crt_test.sh` | CRT Adjust bench: every H-Size at both H-Position extremes, plus V-Shift | ~3 min |
@@ -266,6 +283,7 @@ All logic runs on one **96 MHz** clock (2 × 48 MHz) with clock enables.
 8. **OKI phrase table in block RAM:** jt6295 command handling needs fast table reads.
 9. **CRT Adjust in front of `arcade_video`, HPOS_SYNCSHIFT, clamped H-Position:** Kyle's hardware-proven pattern.
 10. **Vendored dependencies:** so a GitHub zip download builds without submodules.
+11. **Display buffer in DDR3, draw buffer in BRAM:** the blitter does read-modify-write at full speed, so its buffer must stay in BRAM. The display side only needs one sequential write per frame and one line read per line, which DDR3 handles easily. Single-buffering instead would save the same memory but tear: in the attract run, about 2% of blitter runs would still be drawing when the screen starts.
 
 ---
 
@@ -283,6 +301,7 @@ All logic runs on one **96 MHz** clock (2 × 48 MHz) with clock enables.
 | DSW2 default 0xFF (demo sounds off) | Take every default from the driver at the start |
 | OKI dropped commands: jt6295 ignores a command during its phrase-table lookup, and SDRAM lookups were too slow for 2 µs command spacing | Check reused cores' timing assumptions against the game's real access patterns |
 | Verilator re-ran an in-block initializer in `sdram.sv` | Keep initialized declarations at module scope |
+| First Quartus fit: out of M10K (two 384 × 224 frame buffers plus the MiSTer framework) | Count M10K blocks, not bits, against the 553 available, and leave room for the framework; do an early Quartus build with the big memories in place |
 
 ---
 
@@ -308,13 +327,20 @@ All logic runs on one **96 MHz** clock (2 × 48 MHz) with clock enables.
 
 ## 10. Open items and risks (priority order)
 
-1. **First Quartus build:** block-RAM fit, M10K inference, timing at 96 MHz (fx68k multicycle constraint, blitter, SDRAM).
-2. **SDRAM on real hardware:** CAS latency 3, with SDRAM_CLK from an inverted DDR output (as in M92). Corrupt graphics or a crash means suspecting clock phase.
-3. **Audio mix levels:** tune by ear against MAME or the PCB.
-4. **Video:** sync positions are guesses (HS 416–447, VS lines 244–246); check centering. If HS_START changes, recompute the CRT Adjust table (formula in `rtl/s3_crt_adjust.sv`) and run `scripts/crt_test.sh`.
-5. **CPU cache miss cost:** about 1.6% slower during the boot ROM checksum. Watch for slowdown in gameplay, where the game is at its CPU limit.
-6. **Unknowns that need the PCB** (logic analyzer about $15–30, EPROM programmer about $50–70): real blitter speed and arbitration, frame buffering, refresh rate.
-7. **Same-board games:** Hebereke no Popoon and Blocken need:
+1. **Quartus build:** the first build ran out of M10K; the DDR3 display-buffer change must now fit. Then timing at 96 MHz (fx68k multicycle constraint, blitter, SDRAM, DDR3 port).
+2. **One frame later than MAME (confirmed in simulation; Aaron to decide).** The copy to the display buffer happens at vblank start, before the blitter draws the frame the game just started, so each result reaches the screen one frame (about 17 ms) after MAME shows it.
+   - Fix: start the copy when the blitter finishes, with the copy running ahead of the scan-out (it is about 16× faster than the beam). Most runs finish within vblank.
+   - Trade-off: runs that are still drawing when the screen starts (about 2% in attract mode, mostly transitions) need a fallback: show that frame late (as now), or tear for one frame.
+   - The real PCB's behavior is unknown. A high-frame-rate video of the PCB vs. the core (button press to screen change) would settle which is right.
+   - Re-measure after any change with `scripts/mame_latency.py`.
+3. **Frames that differ from MAME** at the 1-frame offset: 96 of 1,001, during title transitions; some differ only by a few color levels (shadow or fade rounding?). Compare against MAME frame by frame; MAME's own shadow uses the palette's shadow table.
+4. **DDR3 display buffer on real hardware:** if the picture is black, garbled or rolling while the game runs (sound and controls fine), suspect the DDR3 path first (address 0x30000000, bursts of 8, `DDRAM_CLK`).
+5. **SDRAM on real hardware:** CAS latency 3, with SDRAM_CLK from an inverted DDR output (as in M92). Corrupt graphics or a crash means suspecting clock phase.
+6. **Audio mix levels:** tune by ear against MAME or the PCB.
+7. **Video:** sync positions are guesses (HS 416–447, VS lines 244–246); check centering. If HS_START changes, recompute the CRT Adjust table (formula in `rtl/s3_crt_adjust.sv`) and run `scripts/crt_test.sh`.
+8. **CPU cache miss cost:** about 1.6% slower during the boot ROM checksum. Watch for slowdown in gameplay, where the game is at its CPU limit.
+9. **Unknowns that need the PCB** (logic analyzer about $15–30, EPROM programmer about $50–70): real blitter speed and arbitration, frame buffering, refresh rate.
+10. **Same-board games:** full plan in `docs/SAME_BOARD_GAMES.md`. Hebereke no Popoon and Blocken need:
    - a Z80 + YM3438 (jt12) sound section
    - a sound latch
    - OKI banking (bank switching also affects the phrase-table copy)
@@ -354,6 +380,8 @@ What we noticed along the way: facts, not rules. The retrospective and playbook 
 - The workspace can reach github.com but not Ubuntu's package mirrors, Intel's downloads, or (reliably) PyPI. Setting up tools took about an hour of trial and error the first time.
 - GitHub access is per session, and only for repos attached at the start. The sandbox can't create a repo, or push to one created mid-session.
 - Quartus can't run in the sandbox, so synthesis results (fit, timing, block RAM) depend on Aaron's PC. That splits every hardware iteration between two machines.
+- The first Quartus build came very late (after every subsystem was finished) and failed on block RAM, which the handoff had already flagged as the biggest fit risk. The Quartus error only says "more than 553" without a breakdown; the per-memory numbers are in the Fitter report (Resource Section).
+- The linked computer for file access was the Mac; Quartus runs on the Windows laptop, so its reports weren't reachable from the session.
 
 **About working together**
 - Short status messages mattered. Aaron asked "do you need anything?" during long silent runs.
@@ -420,7 +448,9 @@ What we noticed along the way: facts, not rules. The retrospective and playbook 
   - `scripts/` (romtool, sim scripts, compare scripts, setup)
   - the Verilator testbench patterns (`tb_main.cpp`, `top_tb.cpp` with the SDRAM model)
 - Bring up CPU + RAM + ROM + video timing with a test-pattern output.
-- **Aaron runs the first Quartus build now** to catch fit, timing and tooling problems early.
+- **Aaron runs the first Quartus build now** to catch fit, timing and tooling problems early. Put placeholder memories of the final sizes in (frame buffers, work RAM) so the M10K count is realistic.
+- Budget block RAM in **M10K blocks** (553 on the DE10-Nano; a 12-bit-wide 86K-deep buffer costs about 126–132), keep about 100–150 for the MiSTer framework, and plan frame buffers in DDR3 from the start if they don't fit.
+- Ask Aaron to link the PC that runs Quartus (or connect its project folder), so the session can read `output_files/*.rpt` directly.
 
 ### Phase 3: board logic plus the reference model
 - Hand-assembled CPU test ROM: reset vectors, RAM, I/O, IRQ.

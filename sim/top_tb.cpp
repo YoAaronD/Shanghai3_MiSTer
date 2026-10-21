@@ -8,6 +8,7 @@
 //   s3j_char-a1.ic43 s3j_v10.ic75 (streamed in that order, like the MRA)
 #include "Vshangha3_top.h"
 #include "verilated.h"
+#include "ddr_model.h"
 #if defined(DEBUG_CACHE) || defined(OKI_PROBE)
 #include "Vshangha3_top___024root.h"
 #endif
@@ -124,8 +125,11 @@ int main(int argc, char** argv) {
     top->dsw2 = 0xbf;
     top->ioctl_index = 0;
 
+    DdrModel ddr;
+    for (int i = 1; i < argc; i++) if (!strcmp(argv[i], "--ddr-easy")) ddr.stress = false;
     auto tick = [&]() {
         top->SDRAM_DQ_IN = dq_next;
+        ddr.step(top);
         top->clk = 0; top->eval();
         top->clk = 1; top->eval();
         cycle++;
@@ -235,6 +239,7 @@ int main(int argc, char** argv) {
         }
         prev_vblank = top->vblank;
     }
+    printf("DDR3 frame buffer: %ld words written, %ld read, %ld bad addresses\n", ddr.words_written, ddr.words_read, ddr.errors);
     printf("ran %d frames from SDRAM (%.1f ms); SDRAM reads %ld, refreshes %ld\n",
            frames, (cycle - run_start) / 96000.0, sd.reads, sd.refreshes);
 

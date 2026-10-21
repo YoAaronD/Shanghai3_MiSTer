@@ -25,6 +25,17 @@ module shangha3_top (
     output logic        hsync, vsync, hblank, vblank, vblank_next,
     output logic [7:0]  red, green, blue,
 
+    // DDR3 for the display frame buffer (MiSTer DDRAM port, Avalon-MM)
+    input  logic        ddr_busy,
+    output logic [7:0]  ddr_burstcnt,
+    output logic [28:0] ddr_addr,
+    input  logic [63:0] ddr_dout,
+    input  logic        ddr_dout_ready,
+    output logic        ddr_rd,
+    output logic [63:0] ddr_din,
+    output logic [7:0]  ddr_be,
+    output logic        ddr_we,
+
     // audio
     output logic signed [15:0] snd,
 
@@ -76,6 +87,8 @@ module shangha3_top (
         .in_inputs, .in_system, .dsw1, .dsw2,
         .ce_pix, .hsync, .vsync, .hblank, .vblank, .vblank_next, .red, .green, .blue,
         .gfx_req, .gfx_addr, .gfx_ack, .gfx_data,
+        .ddr_busy, .ddr_burstcnt, .ddr_addr, .ddr_dout, .ddr_dout_ready,
+        .ddr_rd, .ddr_din, .ddr_be, .ddr_we,
         .psg_snd(), .oki_snd(), .snd,
         .oki_rom_addr, .oki_rom_data, .oki_rom_ok,
         .dbg_blit_go(), .dbg_irq_ack(), .dbg_gfxlist(), .dbg_flip(), .dbg_coinctrl(),

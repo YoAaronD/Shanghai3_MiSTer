@@ -20,7 +20,6 @@ assign ADC_BUS  = 'Z;
 assign USER_OUT = '1;
 assign {UART_RTS, UART_TXD, UART_DTR} = 0;
 assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
-assign {DDRAM_CLK, DDRAM_BURSTCNT, DDRAM_ADDR, DDRAM_DIN, DDRAM_BE, DDRAM_RD, DDRAM_WE} = '0;
 
 assign VGA_F1 = 0;
 assign VGA_SCALER  = 0;
@@ -138,6 +137,8 @@ wire        ce_pix, hs, vs, hbl, vbl, vbl_next;
 wire  [7:0] r, g, b;
 wire signed [15:0] snd;
 
+assign DDRAM_CLK = clk_sys;           // DDR3 holds the display frame buffer (see rtl/shangha3_video.sv)
+
 shangha3_top core
 (
 	.clk(clk_sys),
@@ -167,6 +168,16 @@ shangha3_top core
 	.blue(b),
 
 	.snd(snd),
+
+	.ddr_busy(DDRAM_BUSY),
+	.ddr_burstcnt(DDRAM_BURSTCNT),
+	.ddr_addr(DDRAM_ADDR),
+	.ddr_dout(DDRAM_DOUT),
+	.ddr_dout_ready(DDRAM_DOUT_READY),
+	.ddr_rd(DDRAM_RD),
+	.ddr_din(DDRAM_DIN),
+	.ddr_be(DDRAM_BE),
+	.ddr_we(DDRAM_WE),
 
 	.SDRAM_CLK(SDRAM_CLK),
 	.SDRAM_CKE(SDRAM_CKE),

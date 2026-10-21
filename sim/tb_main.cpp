@@ -9,6 +9,7 @@
 
 #include "Vshangha3_board.h"
 #include "verilated.h"
+#include "ddr_model.h"
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -89,9 +90,12 @@ int main(int argc, char** argv) {
     unsigned last_rom_addr = 0;
     long reads = 0, writes = 0, irqs = 0, blits = 0;
 
+    DdrModel ddr;
+    for (int i = 1; i < argc; i++) if (!strcmp(argv[i], "--ddr-easy")) ddr.stress = false;
     auto tick = [&]() {
         bool gfx_req = top->gfx_req;
         uint32_t gfx_addr = top->gfx_addr;
+        ddr.step(top);
         top->clk = 0; top->eval();
         top->clk = 1; top->eval();
         cycle++;
@@ -206,6 +210,7 @@ int main(int argc, char** argv) {
         fclose(w);
         printf("wrote %zu audio samples to %s\n", audio.size(), wav_path.c_str());
     }
+    printf("DDR3 frame buffer: %ld words written, %ld read, %ld bad addresses\n", ddr.words_written, ddr.words_read, ddr.errors);
     printf("ran %d frames, %llu clocks (%.1f ms emulated)\n", frame,
            (unsigned long long)cycle, cycle / 96000.0);
     printf("bus: %ld reads, %ld writes, %ld irq acks, %ld blitter starts\n",

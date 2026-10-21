@@ -43,7 +43,7 @@ What to expect:
 | YM2149 sound | 1.5 MHz | Done (jt49) |
 | OKI M6295 sound | 1.056 MHz, 8 kHz samples | Done (jt6295); samples from SDRAM |
 | GA9201 blitter | Custom chip that draws tiles into a frame buffer | Done: sprites, zoom, tilemaps, shadows, flip (no rotation). Pixel-exact against the software model |
-| Frame buffers | Draw buffer plus display buffer, copied at vblank | Done (PCB method unknown) |
+| Frame buffers | Draw buffer (block RAM) plus display buffer (DDR3), copied at vblank | Done (PCB method unknown) |
 | CRT Adjust | Analog CRT H-Size / H-Position / V-Shift from the OSD | Done (rmonic79's module + glue adapted from Kyle's Nostradamus core); bench-verified on this raster |
 | MiSTer wrapper | Video out, controls, ROM loading, MRA file | Written, simulated up to the MiSTer framework; **not yet built in Quartus** |
 
@@ -139,7 +139,8 @@ Frames are written as `.ppm` images (384 × 224). Most image viewers open them.
   - 517 runs across 60 seconds of attract mode, 40 zoomed-sprite runs and 30 tilemap runs: all pixel-exact.
   - Deliberately breaking the shadow logic makes 25 of 52 cases fail, so the test does catch errors.
 - Speed: the worst run takes 16.8% of a frame at 96 MHz with an 8-clock graphics ROM latency.
-- Frame buffers: the draw buffer is copied to the display buffer at the start of vblank (0.9 ms of the 2.5 ms vblank). Drawing waits for the copy to finish; the snapshot phase doesn't. This gives tear-free output with MAME's frame timing.
+- Frame buffers: the draw buffer is copied to the display buffer at the start of vblank (0.9 ms of the 2.5 ms vblank). Drawing waits for the copy to finish; the snapshot phase doesn't. This gives tear-free output, but each blitter result appears one frame later than in MAME (measured against real MAME; see `docs/HANDOFF.md` §10).
+- The display buffer is in the MiSTer's DDR3 (at 0x30000000). The first Quartus build ran out of block RAM with both buffers on-chip. Scan-out reads each line from DDR3 one line ahead. In simulation (DDR3 model with random stalls) this is frame- and timing-identical to the all-block-RAM version.
 - Full-board run (`scripts/sim.sh game N --frames-out DIR`) captures the real RGB output; `scripts/compare_frames.py` matches it against the reference model's frames.
 - Full-board results, 1800 frames (30 s) from power-on through the title screen into demo play:
   - Every frame up to 1110 is pixel-identical to a reference frame, sometimes shifted a few frames in time.
@@ -190,16 +191,20 @@ Frames are written as `.ppm` images (384 × 224). Most image viewers open them.
   Result: 59 settings, 5.1 M checks, all pass. The bench caught one marginal limit (H-Size +5), which was tightened.
 - The clamp table assumes HSync starts at dot 416, a placeholder. If the sync position is changed after measuring the PCB, recompute the table (formula in the file) and re-run the bench.
 
+## Versions
+
+See `CHANGELOG.md`. Git tags (`v0.1.0` …) mark milestones; following MiSTer custom, released cores are date-stamped (`releases/Shanghai3_YYYYMMDD.rbf`), and the core's OSD shows its build date.
+
 ## Next steps
 
-1. Build in Quartus on a PC and test on the DE10-Nano (see "Building the core"). Check the block-RAM budget:
-   - frame buffers: 2 × 1.03 Mbit
+1. Build in Quartus on a PC and test on the DE10-Nano (see "Building the core"). The first build ran out of M10K blocks (553 on the DE10-Nano), so the display buffer moved to DDR3. Core block RAM is now about 270 M10K:
+   - draw buffer: 1.03 Mbit
    - command snapshot: 352 Kbit
    - tilemap snapshot: 128 Kbit
    - work RAM: 512 Kbit
    - palette: 32 Kbit
 
-   That's about 3.1 Mbit of the Cyclone V's 5.6 Mbit, before the MiSTer framework. If it doesn't fit, the display buffer can move to DDR.
+   If it still doesn't fit, see the fallback list in `docs/HANDOFF.md` §4.
 2. Tune audio levels by ear, and check the controls and DIP switches.
 3. Later, measure on the real PCB: refresh rate, sync timing, and blitter speed.
 

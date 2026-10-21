@@ -50,6 +50,17 @@ module shangha3_board (
     input  logic        gfx_ack,
     input  logic [63:0] gfx_data,
 
+    // DDR3 for the display frame buffer (MiSTer DDRAM port, Avalon-MM)
+    input  logic        ddr_busy,
+    output logic [7:0]  ddr_burstcnt,
+    output logic [28:0] ddr_addr,
+    input  logic [63:0] ddr_dout,
+    input  logic        ddr_dout_ready,
+    output logic        ddr_rd,
+    output logic [63:0] ddr_din,
+    output logic [7:0]  ddr_be,
+    output logic        ddr_we,
+
     // audio
     output logic [9:0]  psg_snd,          // YM2149 raw (unsigned)
     output logic signed [13:0] oki_snd,   // OKI M6295 raw (signed)
@@ -280,7 +291,9 @@ module shangha3_board (
         .copying   (fb_copying),
         .pal_addr  (vid_pal_addr),
         .pal_q     (vid_pal_q),
-        .red, .green, .blue
+        .red, .green, .blue,
+        .ddr_busy, .ddr_burstcnt, .ddr_addr, .ddr_dout, .ddr_dout_ready,
+        .ddr_rd, .ddr_din, .ddr_be, .ddr_we
     );
 
     // ------------------------------------------------------------------
