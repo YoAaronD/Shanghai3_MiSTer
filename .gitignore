@@ -1,0 +1,28 @@
+# simulation output
+sim/obj*/
+sim/*.build.log
+sim/*trace.txt
+sim/frames/
+sim/hdl_frames/
+sim/hdl_boot/
+sim/top_frames/
+sim/blits/
+sim/roms/
+sim/test_rom.bin
+sim/*.wav
+sim/refmodel/refmodel
+ext/Musashi/
+
+# Quartus output
+db/
+incremental_db/
+output_files/
+greybox_tmp/
+*.qws
+*.rpt
+*.summary
+*.done
+*.smsg
+*.jdi
+*.sld
+build_id.v

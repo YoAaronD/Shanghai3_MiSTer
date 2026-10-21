@@ -1,0 +1,37 @@
+# Shanghai III core files (paths relative to the project directory)
+set_global_assignment -name SDC_FILE Shanghai3.sdc
+set_global_assignment -name SYSTEMVERILOG_FILE Shanghai3.sv
+
+# reused open-source cores
+set_global_assignment -name SYSTEMVERILOG_FILE ext/fx68k/fx68k.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ext/fx68k/fx68kAlu.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ext/fx68k/uaddrPla.sv
+set_global_assignment -name VERILOG_FILE ext/jt49/hdl/jt49.v
+set_global_assignment -name VERILOG_FILE ext/jt49/hdl/jt49_bus.v
+set_global_assignment -name VERILOG_FILE ext/jt49/hdl/jt49_cen.v
+set_global_assignment -name VERILOG_FILE ext/jt49/hdl/jt49_div.v
+set_global_assignment -name VERILOG_FILE ext/jt49/hdl/jt49_eg.v
+set_global_assignment -name VERILOG_FILE ext/jt49/hdl/jt49_exp.v
+set_global_assignment -name VERILOG_FILE ext/jt49/hdl/jt49_noise.v
+set_global_assignment -name VERILOG_FILE ext/jt6295/hdl/jt6295.v
+set_global_assignment -name VERILOG_FILE ext/jt6295/hdl/jt6295_adpcm.v
+set_global_assignment -name VERILOG_FILE ext/jt6295/hdl/jt6295_timing.v
+set_global_assignment -name VERILOG_FILE ext/jt6295/hdl/jt6295_acc.v
+set_global_assignment -name VERILOG_FILE ext/jt6295/hdl/jt6295_ctrl.v
+set_global_assignment -name VERILOG_FILE ext/jt6295/hdl/jt6295_rom.v
+set_global_assignment -name VERILOG_FILE ext/jt6295/hdl/jt6295_serial.v
+set_global_assignment -name VERILOG_FILE ext/jt6295/hdl/jt6295_sh_rst.v
+
+# this core
+set_global_assignment -name QIP_FILE rtl/pll.qip
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/sdram.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/shangha3_video_timing.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/shangha3_blitter.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/shangha3_video.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/shangha3_board.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/shangha3_mem.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/shangha3_top.sv
+
+# CRT Adjust (rmonic79, unmodified) + Shanghai III glue (adapted from Kyle Lester's Nostradamus core)
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/vendor/crt_adjust.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/s3_crt_adjust.sv

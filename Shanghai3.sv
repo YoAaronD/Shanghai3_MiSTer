@@ -1,0 +1,254 @@
+//============================================================================
+//  Shanghai III (Sunsoft, 1993) for MiSTer
+//
+//  This program is free software; you can redistribute it and/or modify it
+//  under the terms of the GNU General Public License as published by the Free
+//  Software Foundation; either version 3 of the License, or (at your option)
+//  any later version.
+//
+//  Based on the MiSTer Template (Sorgelig and contributors).
+//============================================================================
+
+module emu
+(
+	`include "sys/emu_ports.vh"
+);
+
+///////// Default values for ports not used in this core /////////
+
+assign ADC_BUS  = 'Z;
+assign USER_OUT = '1;
+assign {UART_RTS, UART_TXD, UART_DTR} = 0;
+assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
+assign {DDRAM_CLK, DDRAM_BURSTCNT, DDRAM_ADDR, DDRAM_DIN, DDRAM_BE, DDRAM_RD, DDRAM_WE} = '0;
+
+assign VGA_F1 = 0;
+assign VGA_SCALER  = 0;
+assign VGA_DISABLE = 0;
+assign HDMI_FREEZE = 0;
+assign HDMI_BLACKOUT = 0;
+assign HDMI_BOB_DEINT = 0;
+
+assign LED_DISK  = 0;
+assign LED_POWER = 0;
+assign BUTTONS   = 0;
+
+//////////////////////////////////////////////////////////////////
+
+wire [1:0] ar = status[122:121];
+assign VIDEO_ARX = (!ar) ? 12'd4 : (ar - 1'd1);
+assign VIDEO_ARY = (!ar) ? 12'd3 : 12'd0;
+
+`include "build_id.v"
+localparam CONF_STR = {
+	"Shanghai3;;",
+	"-;",
+	"O[122:121],Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",
+	"O[5:3],Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%,CRT 75%;",
+	"P1,CRT Adjust;",
+	"P1O[96],CRT Adjust,Off,On;",
+	"H1P1O[116:112],CRT H-Size,0,+1,+2,+3,+4,+5,+6,+7,+8,+9,+10,-12,-11,-10,-9,-8,-7,-6,-5,-4,-3,-2,-1;",
+	"H1P1O[104:101],CRT H-Position,0,+6,+12,+18,+24,+30,+36,+42,-48,-42,-36,-30,-24,-18,-12,-6;",
+	"H1P1O[108:105],CRT V-Shift,0,+1,+2,+3,+4,+5,+6,+7,-8,-7,-6,-5,-4,-3,-2,-1;",
+	"-;",
+	"DIP;",
+	"-;",
+	"O[6],Service Mode,Off,On;",
+	"-;",
+	"T[0],Reset;",
+	"R[0],Reset and close OSD;",
+	"J1,Button 1,Button 2,Start,Coin,Service;",
+	"jn,A,B,Start,Select,R;",
+	"V,v",`BUILD_DATE
+};
+
+wire        forced_scandoubler;
+wire  [1:0] buttons;
+wire [127:0] status;
+wire [31:0] joy1, joy2;
+wire [21:0] gamma_bus;
+
+wire        ioctl_download;
+wire [15:0] ioctl_index;
+wire        ioctl_wr;
+wire [26:0] ioctl_addr;
+wire  [7:0] ioctl_dout;
+wire        ioctl_wait;
+
+hps_io #(.CONF_STR(CONF_STR)) hps_io
+(
+	.clk_sys(clk_sys),
+	.HPS_BUS(HPS_BUS),
+	.EXT_BUS(),
+	.gamma_bus(gamma_bus),
+
+	.forced_scandoubler(forced_scandoubler),
+	.buttons(buttons),
+	.status(status),
+	.status_menumask({14'd0, ~status[96], 1'b0}),   // H1: hide the CRT Adjust amounts while Off
+
+	.joystick_0(joy1),
+	.joystick_1(joy2),
+
+	.ioctl_download(ioctl_download),
+	.ioctl_index(ioctl_index),
+	.ioctl_wr(ioctl_wr),
+	.ioctl_addr(ioctl_addr),
+	.ioctl_dout(ioctl_dout),
+	.ioctl_wait(ioctl_wait)
+);
+
+///////////////////////   CLOCKS   ///////////////////////////////
+
+wire clk_sys;          // 96 MHz: 2 x the PCB's 48 MHz crystal
+wire pll_locked;
+pll pll
+(
+	.refclk(CLK_50M),
+	.rst(0),
+	.outclk_0(clk_sys),
+	.locked(pll_locked)
+);
+
+wire reset = RESET | status[0] | buttons[1];
+
+/////////////////////   DIP SWITCHES   ///////////////////////////
+// The MRA sends the switch bytes on ioctl index 254: [0] = DSW1, [1] = DSW2
+
+reg [7:0] sw[2];
+initial begin
+	sw[0] = 8'hFF;
+	sw[1] = 8'hBF;
+end
+always @(posedge clk_sys)
+	if (ioctl_wr && (ioctl_index == 16'd254) && !ioctl_addr[24:1]) sw[ioctl_addr[0]] <= ioctl_dout;
+
+//////////////////////////   INPUTS   ////////////////////////////
+// MiSTer joystick bits: 0 right, 1 left, 2 down, 3 up,
+//                       4 button 1, 5 button 2, 6 start, 7 coin, 8 service
+// PCB 200000 (active low): P1 bits 0-5 = right,left,down,up,b1,b2; P2 bits 8-13
+// PCB 200002 (active low): 0 coin1, 1 coin2, 2 service, 3 start1, 4 start2, 5 test
+
+wire [15:0] in_inputs = ~{2'b00, joy2[5:0], 2'b00, joy1[5:0]};
+wire  [6:0] in_system = ~{1'b0, status[6], joy1[8] | joy2[8], joy2[6], joy1[6], joy2[7], joy1[7]};
+
+//////////////////////////   CORE   //////////////////////////////
+
+wire        ce_pix, hs, vs, hbl, vbl, vbl_next;
+wire  [7:0] r, g, b;
+wire signed [15:0] snd;
+
+shangha3_top core
+(
+	.clk(clk_sys),
+	.reset(reset),
+	.sdram_init(~pll_locked),
+
+	.ioctl_download(ioctl_download),
+	.ioctl_index(ioctl_index),
+	.ioctl_wr(ioctl_wr),
+	.ioctl_addr(ioctl_addr),
+	.ioctl_dout(ioctl_dout),
+	.ioctl_wait(ioctl_wait),
+
+	.in_inputs(in_inputs),
+	.in_system(in_system),
+	.dsw1(sw[0]),
+	.dsw2(sw[1]),
+
+	.ce_pix(ce_pix),
+	.hsync(hs),
+	.vsync(vs),
+	.hblank(hbl),
+	.vblank(vbl),
+	.vblank_next(vbl_next),
+	.red(r),
+	.green(g),
+	.blue(b),
+
+	.snd(snd),
+
+	.SDRAM_CLK(SDRAM_CLK),
+	.SDRAM_CKE(SDRAM_CKE),
+	.SDRAM_A(SDRAM_A),
+	.SDRAM_BA(SDRAM_BA),
+	.SDRAM_DQ(SDRAM_DQ),
+	.SDRAM_DQML(SDRAM_DQML),
+	.SDRAM_DQMH(SDRAM_DQMH),
+	.SDRAM_nCS(SDRAM_nCS),
+	.SDRAM_nCAS(SDRAM_nCAS),
+	.SDRAM_nRAS(SDRAM_nRAS),
+	.SDRAM_nWE(SDRAM_nWE)
+);
+
+//////////////////////////   VIDEO   /////////////////////////////
+// 384 x 224 visible, 8 MHz pixel clock, 512 x 263 total (59.41 Hz)
+
+// CRT Adjust (analog CRT geometry: H-Size, H-Position, V-Shift). Off = exact bypass.
+reg  vs_d = 1'b0;
+always @(posedge clk_sys) vs_d <= vs;
+wire frame_event = vs && !vs_d;            // once per frame, inside vertical blanking
+
+wire        av_ce, av_hb, av_vb, av_hs, av_vs;
+wire [23:0] av_rgb;
+s3_crt_adjust #(.SYS_HZ(96_000_000), .PIX_DIV(12), .HTOTAL(512), .VTOTAL(263)) crt_adjust
+(
+	.clk_sys(clk_sys),
+	.ce_pix(ce_pix),
+	.frame_event(frame_event),
+	.osd_on(status[96]),
+	.osd_hsize(status[116:112]),
+	.osd_hpos(status[104:101]),
+	.osd_vshift(status[108:105]),
+	.sd_off((status[5:3] == 3'd0) && !forced_scandoubler),
+	.rgb_in({r, g, b}),
+	.hblank_in(hbl),
+	.vblank_in(vbl),
+	.hsync_in(hs),
+	.vsync_in(vs),
+	.vb_next_in(vbl_next),
+	.ce_out(av_ce),
+	.rgb_out(av_rgb),
+	.hblank_out(av_hb),
+	.vblank_out(av_vb),
+	.hsync_out(av_hs),
+	.vsync_out(av_vs),
+	.active()
+);
+
+arcade_video #(.WIDTH(384), .DW(24)) arcade_video
+(
+	.clk_video(clk_sys),
+	.ce_pix(av_ce),
+
+	.RGB_in(av_rgb),
+	.HBlank(av_hb),
+	.VBlank(av_vb),
+	.HSync(av_hs),
+	.VSync(av_vs),
+
+	.CLK_VIDEO(CLK_VIDEO),
+	.CE_PIXEL(CE_PIXEL),
+	.VGA_R(VGA_R),
+	.VGA_G(VGA_G),
+	.VGA_B(VGA_B),
+	.VGA_HS(VGA_HS),
+	.VGA_VS(VGA_VS),
+	.VGA_DE(VGA_DE),
+	.VGA_SL(VGA_SL),
+
+	.fx(status[5:3]),
+	.forced_scandoubler(forced_scandoubler),
+	.gamma_bus(gamma_bus)
+);
+
+//////////////////////////   AUDIO   /////////////////////////////
+
+assign AUDIO_L   = snd;
+assign AUDIO_R   = snd;
+assign AUDIO_S   = 1;      // signed samples
+assign AUDIO_MIX = 0;
+
+assign LED_USER  = ioctl_download;
+
+endmodule

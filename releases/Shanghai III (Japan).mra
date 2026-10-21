@@ -1,0 +1,34 @@
+<misterromdescription>
+    <name>Shanghai III (Japan)</name>
+    <setname>shangha3j</setname>
+    <parent>shangha3</parent>
+    <year>1993</year>
+    <manufacturer>Sunsoft</manufacturer>
+    <category>Puzzle</category>
+    <rbf>Shanghai3</rbf>
+    <rotation>horizontal</rotation>
+
+    <joystick>8-way</joystick>
+    <num_buttons>2</num_buttons>
+    <buttons default="A,B,Start,Select,R" names="Button 1,Button 2,Start,Coin,Service"></buttons>
+
+    <!-- DSW1 = bits 0-7, DSW2 = bits 8-15 (values from MAME shangha3.cpp) -->
+    <switches default="FF BF">
+        <dip bits="0,2" ids="5C/1C,1C/4C,3C/1C,1C/2C,4C/1C,1C/3C,2C/1C,1C/1C" name="Coin A"></dip>
+        <dip bits="3,5" ids="5C/1C,1C/4C,3C/1C,1C/2C,4C/1C,1C/3C,2C/1C,1C/1C" name="Coin B"></dip>
+        <dip bits="8,9" ids="Hardest,Easy,Hard,Normal" name="Difficulty"></dip>
+        <dip bits="10,11" ids="100 sec,70 sec,90 sec,80 sec" name="Base Time"></dip>
+        <dip bits="12,13" ids="7 sec,4 sec,6 sec,5 sec" name="Additional Time"></dip>
+        <dip bits="14" ids="On,Off" name="Demo Sounds"></dip>
+        <dip bits="15" ids="On,Off" name="Flip Screen"></dip>
+    </switches>
+
+    <!-- One byte stream; the core interleaves the two program EPROMs itself.
+         Works with a split set (shangha3j.zip) or a merged set (shangha3.zip). -->
+    <rom index="0" zip="shangha3j.zip|shangha3.zip" md5="None">
+        <part name="s3j_v11.ic3" crc="e98ce9c8"/>
+        <part name="s3j_v11.ic2" crc="09174620"/>
+        <part name="s3j_char-a1.ic43" crc="2dbf9d17"/>
+        <part name="s3j_v10.ic75" crc="f0cdc86a"/>
+    </rom>
+</misterromdescription>
