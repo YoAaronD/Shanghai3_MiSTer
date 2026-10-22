@@ -13,6 +13,17 @@ Each entry below gives both: version, then date stamp.
 
 ---
 
+## v0.1.1 — 20261021
+
+Timing fix after the first successful Quartus build. That build fit, but missed timing on the core's 96 MHz clock: worst slack −8.8 ns, total −500 ns.
+
+**Fixed**
+- Video: the shadow darkening (×0.6) used a divider. It was the 200 worst failing paths, about 17 ns at a 10.4 ns clock. It is now a 32-entry lookup table with identical results.
+- Blitter: the tilemap position and clip/flip multiplications are split into register stages, with two wait states before each tile is drawn. 505 real blitter runs remain pixel-exact; the worst run takes 16.9% of a frame (was 16.8%).
+
+**Added**
+- `scripts/quartus/post_flow.tcl`: after every compile, writes `output_files/timing_paths.txt`, listing every failing endpoint (setup and hold) with its worst path.
+
 ## v0.1.0 — 20261021
 
 First version expected to compile in Quartus. Not yet tested on a MiSTer.

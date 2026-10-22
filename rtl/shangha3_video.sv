@@ -259,10 +259,48 @@ module shangha3_video (
         nvis = (nh < 9'd384) && (nv >= 9'd16) && (nv <= 9'd239) && disp_valid;
     end
 
+    // 5-bit colour -> 8 bits; shadowed pixels x0.6 (as in MAME). The x0.6
+    // is a 32-entry table: the divider it replaces was the slowest path in
+    // the first Quartus build (-8.8 ns at 96 MHz).
+    function automatic logic [7:0] dark5(input logic [4:0] c);
+        case (c)
+            5'd0 : dark5 = 8'd0;
+            5'd1 : dark5 = 8'd4;
+            5'd2 : dark5 = 8'd9;
+            5'd3 : dark5 = 8'd14;
+            5'd4 : dark5 = 8'd19;
+            5'd5 : dark5 = 8'd24;
+            5'd6 : dark5 = 8'd29;
+            5'd7 : dark5 = 8'd34;
+            5'd8 : dark5 = 8'd39;
+            5'd9 : dark5 = 8'd44;
+            5'd10: dark5 = 8'd49;
+            5'd11: dark5 = 8'd54;
+            5'd12: dark5 = 8'd59;
+            5'd13: dark5 = 8'd64;
+            5'd14: dark5 = 8'd69;
+            5'd15: dark5 = 8'd73;
+            5'd16: dark5 = 8'd79;
+            5'd17: dark5 = 8'd84;
+            5'd18: dark5 = 8'd88;
+            5'd19: dark5 = 8'd93;
+            5'd20: dark5 = 8'd99;
+            5'd21: dark5 = 8'd103;
+            5'd22: dark5 = 8'd108;
+            5'd23: dark5 = 8'd113;
+            5'd24: dark5 = 8'd118;
+            5'd25: dark5 = 8'd123;
+            5'd26: dark5 = 8'd128;
+            5'd27: dark5 = 8'd133;
+            5'd28: dark5 = 8'd138;
+            5'd29: dark5 = 8'd143;
+            5'd30: dark5 = 8'd148;
+            5'd31: dark5 = 8'd153;
+        endcase
+    endfunction
+
     function automatic logic [7:0] expand5(input logic [4:0] c, input logic dark);
-        logic [7:0] c8;
-        c8 = {c, c[4:2]};
-        expand5 = dark ? 8'((16'(c8) * 16'd6) / 16'd10) : c8;
+        expand5 = dark ? dark5(c) : {c, c[4:2]};
     endfunction
 
     always_ff @(posedge clk) begin

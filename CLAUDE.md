@@ -44,6 +44,8 @@ Read first:
 | `scripts/crt_test.sh` | CRT Adjust geometry (only if video timing changed) |
 | `scripts/mame_latency.py MAME_DIR HDL_DIR TRACE` | Frame timing against real MAME (frames from `tools/mame/frame_log.lua`) |
 
+After Aaron's Quartus builds, ask for `output_files/timing_paths.txt` (written by `scripts/quartus/post_flow.tcl`) and the Fitter resource summary; any negative setup slack on the 96 MHz clock must be fixed before reading much into hardware results.
+
 Then update `docs/HANDOFF.md` (status, timeline, bugs and lessons, observations) and `CHANGELOG.md`.
 
 **Versioning:** git tags `v0.x.y` for milestones (1.0.0 = first public release), each also given a date stamp `YYYYMMDD`. Released cores go in `releases/` as `Shanghai3_YYYYMMDD.rbf`. The OSD's `vYYMMDD` comes from `sys/build_id.tcl` automatically.

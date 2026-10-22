@@ -302,6 +302,7 @@ All logic runs on one **96 MHz** clock (2 × 48 MHz) with clock enables.
 | OKI dropped commands: jt6295 ignores a command during its phrase-table lookup, and SDRAM lookups were too slow for 2 µs command spacing | Check reused cores' timing assumptions against the game's real access patterns |
 | Verilator re-ran an in-block initializer in `sdram.sv` | Keep initialized declarations at module scope |
 | First Quartus fit: out of M10K (two 384 × 224 frame buffers plus the MiSTer framework) | Count M10K blocks, not bits, against the 553 available, and leave room for the framework; do an early Quartus build with the big memories in place |
+| First fitting build missed 96 MHz timing by 8.8 ns: a divide-by-10 (shadow colour) in one clock, plus unregistered multiplies in the blitter | Use no dividers and register around every multiplier; check TimeQuest's Setup Summary on every build. `output_files/timing_paths.txt` lists every failing endpoint |
 
 ---
 
@@ -327,7 +328,7 @@ All logic runs on one **96 MHz** clock (2 × 48 MHz) with clock enables.
 
 ## 10. Open items and risks (priority order)
 
-1. **Quartus build:** the first build ran out of M10K; the DDR3 display-buffer change must now fit. Then timing at 96 MHz (fx68k multicycle constraint, blitter, SDRAM, DDR3 port).
+1. **Quartus timing:** the first fitting build (v0.1.0) missed 96 MHz by 8.8 ns. v0.1.1 fixes the known paths (shadow divider, blitter multiplies). If the next build still fails, `output_files/timing_paths.txt` lists every failing endpoint.
 2. **One frame later than MAME (confirmed in simulation; Aaron to decide).** The copy to the display buffer happens at vblank start, before the blitter draws the frame the game just started, so each result reaches the screen one frame (about 17 ms) after MAME shows it.
    - Fix: start the copy when the blitter finishes, with the copy running ahead of the scan-out (it is about 16× faster than the beam). Most runs finish within vblank.
    - Trade-off: runs that are still drawing when the screen starts (about 2% in attract mode, mostly transitions) need a fallback: show that frame late (as now), or tear for one frame.

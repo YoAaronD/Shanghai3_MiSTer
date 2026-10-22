@@ -108,7 +108,7 @@ module shangha3_blitter (
         S_TM_COPY, S_P2_WAIT, S_P2_FETCH, S_P2_LOAD, S_P2_NEXT, S_CMD_DEC, S_CMD_CLIP, S_DISPATCH,
         S_SPR_NEXT,
         S_TM_SETUP, S_TM_CELL, S_TM_RD, S_TM_POS, S_TM_NEXT,
-        S_D_SETUP, S_D_SETUP2, S_D_ROW, S_D_PIXSTART, S_D_PIX,
+        S_D_PRE0, S_D_PRE1, S_D_SETUP, S_D_SETUP2, S_D_ROW, S_D_PIXSTART, S_D_PIX,
         S_D_SH1, S_D_SH2
     } state_t;
 
@@ -214,8 +214,6 @@ module shangha3_blitter (
                      phase1               ? 14'h0000 : 14'h2000;
 
     // combinational helpers
-    wire signed [15:0] endx = e_destx + $signed({3'b0, e_dstw}) - 16'sd1;
-    wire signed [15:0] endy = e_desty + $signed({3'b0, e_dsth}) - 16'sd1;
     wire [17:0]        row_addr = {e_code[13:0], 4'b0} + 18'(d_srcy >>> 16);
     wire signed [31:0] next_srcy = d_srcy + e_dy;
     wire [17:0]        next_row_addr = {e_code[13:0], 4'b0} + 18'(next_srcy >>> 16);
@@ -229,23 +227,48 @@ module shangha3_blitter (
         else                             shadow_of = p | 12'h800;
     endfunction
 
+    // ------------------------------------------------------------------
+    // Arithmetic pipelines (free-running, registered). The first Quartus
+    // build missed 96 MHz timing, so the multiplies are split into
+    // register stages; the state machine waits for them:
+    //   tilemap cell offsets: tm_x/tm_y change at least 4 clocks before
+    //     S_TM_POS (S_TM_CELL + 3 x S_TM_RD), the pipeline needs 3
+    //   clip/flip products: S_D_PRE0/S_D_PRE1 wait 2 clocks after the
+    //     draw parameters (e_destx, e_dx, ...) are set, before S_D_SETUP
+    // ------------------------------------------------------------------
     // tilemap cell position (before flip): base*x*(0x200-zoom)/256 - disp
-    wire [9:0]  tm_zfx = 10'h200 - w10[9:0];
-    wire [9:0]  tm_zfy = 10'h200 - w13[9:0];
-    // narrow multiplies (8 x 10 bits) so they fit one DSP block at 96 MHz
-    wire [17:0] tm_px = tm_x * tm_zfx;
-    wire [17:0] tm_py = tm_y * tm_zfy;
-    wire [31:0] tm_offx = ((32'(tm_px) << (tm_cond ? 3 : 4)) >> 8) - 32'(tm_dispx);
-    wire [31:0] tm_offy = ((32'(tm_py) << (tm_cond ? 3 : 4)) >> 8) - 32'(tm_dispy);
+    logic [9:0]  tm_zfx, tm_zfy;
+    logic [17:0] tm_px, tm_py;
+    logic [31:0] tm_offx, tm_offy;
+    always_ff @(posedge clk) begin
+        tm_zfx  <= 10'h200 - w10[9:0];
+        tm_zfy  <= 10'h200 - w13[9:0];
+        tm_px   <= tm_x * tm_zfx;               // 8 x 10 bits: one DSP
+        tm_py   <= tm_y * tm_zfy;
+        tm_offx <= ((32'(tm_px) << (tm_cond ? 3 : 4)) >> 8) - 32'(tm_dispx);
+        tm_offy <= ((32'(tm_py) << (tm_cond ? 3 : 4)) >> 8) - 32'(tm_dispy);
+    end
 
     // clip/flip start offsets: 16-bit x 22-bit products (one DSP each); the
     // low 32 bits match the 32-bit wrap-around arithmetic of the C model
-    wire signed [15:0] clip_dx = cx0 - e_destx;
-    wire signed [15:0] clip_dy = cy0 - e_desty;
-    wire signed [37:0] clipx_prod = clip_dx * $signed({1'b0, e_dx[20:0]});
-    wire signed [37:0] clipy_prod = clip_dy * $signed({1'b0, e_dy[20:0]});
-    wire signed [37:0] spanx_prod = $signed({3'b0, e_dstw} - 16'd1) * $signed({1'b0, e_dx[20:0]});
-    wire signed [37:0] spany_prod = $signed({3'b0, e_dsth} - 16'd1) * $signed({1'b0, e_dy[20:0]});
+    logic signed [15:0] clip_dx, clip_dy, span_w, span_h;
+    logic signed [21:0] p_dx, p_dy;
+    logic signed [37:0] clipx_prod, clipy_prod, spanx_prod, spany_prod;
+    logic signed [15:0] endx, endy;
+    always_ff @(posedge clk) begin
+        clip_dx    <= cx0 - e_destx;
+        clip_dy    <= cy0 - e_desty;
+        span_w     <= $signed({3'b0, e_dstw} - 16'd1);
+        span_h     <= $signed({3'b0, e_dsth} - 16'd1);
+        p_dx       <= $signed({1'b0, e_dx[20:0]});
+        p_dy       <= $signed({1'b0, e_dy[20:0]});
+        clipx_prod <= clip_dx * p_dx;
+        clipy_prod <= clip_dy * p_dy;
+        spanx_prod <= span_w * p_dx;
+        spany_prod <= span_h * p_dy;
+        endx       <= e_destx + $signed({3'b0, e_dstw}) - 16'sd1;
+        endy       <= e_desty + $signed({3'b0, e_dsth}) - 16'sd1;
+    end
     wire [11:0] tm_xx = 12'(tm_x) + tm_srcx;
     wire [11:0] tm_yy = 12'(tm_y) + tm_srcy;
     wire [12:0] tm_cell_addr = tm_cond ? {tm_xx[7:0], tm_yy[4:0]}
@@ -434,7 +457,7 @@ module shangha3_blitter (
                     e_dx <= 32'sd256;   e_dy <= 32'sd256;
                     e_shadow <= shadow_en;
                     ret_state <= S_IDLE;           // marker: go to next command
-                    state <= S_D_SETUP;
+                    state <= S_D_PRE0;
                 end else begin
                     spr_n    <= 6'((w6 + 16'd15) >> 4);
                     spr_i    <= 6'd0;
@@ -450,7 +473,7 @@ module shangha3_blitter (
                         e_dy <= $signed(dx_for_width(width_for_zoom(w13)));
                         e_shadow <= shadow_en;
                         ret_state <= S_SPR_NEXT;
-                        state <= S_D_SETUP;
+                        state <= S_D_PRE0;
                     end
                 end
             end
@@ -468,7 +491,7 @@ module shangha3_blitter (
                     e_destx <= sx + $signed({6'b0, spr_i + 6'd1, 4'b0});
                     e_desty <= sy;
                     ret_state <= S_SPR_NEXT;
-                    state   <= S_D_SETUP;
+                    state   <= S_D_PRE0;
                 end
             end
 
@@ -521,7 +544,7 @@ module shangha3_blitter (
                 e_dx     <= 32'sd65536; e_dy <= 32'sd65536;
                 e_shadow <= 1'b0;                // tilemaps: pen 15 transparent only
                 ret_state <= S_TM_NEXT;
-                state    <= S_D_SETUP;
+                state    <= S_D_PRE0;
             end
 
             S_TM_NEXT: begin
@@ -539,6 +562,9 @@ module shangha3_blitter (
             // --------------------------------------------------------------
             // Draw engine: one tile, scaled, clipped to cx0..cx1 / cy0..cy1
             // --------------------------------------------------------------
+            S_D_PRE0: state <= S_D_PRE1;       // let the clip/flip pipeline settle
+            S_D_PRE1: state <= S_D_SETUP;
+
             S_D_SETUP: begin
                 if (e_destx > cx1 || endx < cx0 || e_desty > cy1 || endy < cy0)
                     state <= draw_return(ret_state);

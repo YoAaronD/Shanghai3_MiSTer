@@ -13,7 +13,7 @@ set_global_assignment -name PARTITION_NETLIST_TYPE SOURCE -section_id Top
 set_global_assignment -name PARTITION_FITTER_PRESERVATION_LEVEL PLACEMENT_AND_ROUTING -section_id Top
 set_global_assignment -name PARTITION_COLOR 16764057 -section_id Top
 
-set_global_assignment -name LAST_QUARTUS_VERSION "17.0.0 Lite Edition"
+set_global_assignment -name LAST_QUARTUS_VERSION "17.0.2 Standard Edition"
 
 set_global_assignment -name GENERATE_RBF_FILE ON
 set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files
@@ -72,6 +72,9 @@ set_global_assignment -name SEED 1
 
 # Disable ALSA audio output to save some resources
 #set_global_assignment -name VERILOG_MACRO "MISTER_DISABLE_ALSA=1"
+
+# after each compile, list every failing timing endpoint in output_files/timing_paths.txt
+set_global_assignment -name POST_FLOW_SCRIPT_FILE "quartus_sh:scripts/quartus/post_flow.tcl"
 
 source sys/sys.tcl
 source sys/sys_analog.tcl
