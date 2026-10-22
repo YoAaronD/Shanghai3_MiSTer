@@ -15,7 +15,7 @@ verilator --cc --exe --build -O2 -j 2 ${VFLAGS:-} \
     "$ROOT"/ext/jt49/hdl/jt49*.v "$ROOT"/ext/jt6295/hdl/jt6295*.v \
     "$ROOT/rtl/shangha3_video_timing.sv" "$ROOT/rtl/shangha3_blitter.sv" \
     "$ROOT/rtl/shangha3_video.sv" "$ROOT/rtl/shangha3_board.sv" \
-    "$ROOT/rtl/sdram.sv" "$ROOT/rtl/shangha3_mem.sv" "$ROOT/rtl/shangha3_top.sv" \
+    "$ROOT/rtl/sdram.sv" "$ROOT/rtl/shangha3_mem.sv" "$ROOT/rtl/shangha3_ddr_arb.sv" "$ROOT/rtl/shangha3_top.sv" \
     "$ROOT/sim/top_tb.cpp" > "$OBJ.build.log" 2>&1 || { tail -30 "$OBJ.build.log"; exit 1; }
 
 cd "$ROOT/ext/fx68k"     # fx68k microcode files are loaded from the cwd

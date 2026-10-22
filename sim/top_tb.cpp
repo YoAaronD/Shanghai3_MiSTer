@@ -18,6 +18,7 @@
 #include <deque>
 #include <string>
 #include <vector>
+#include <unordered_map>
 
 static std::vector<uint8_t> load(const std::string& p) {
     std::vector<uint8_t> d;
@@ -126,10 +127,28 @@ int main(int argc, char** argv) {
     top->ioctl_index = 0;
 
     DdrModel ddr;
+    bool rot_on = false;
+    for (int i = 1; i < argc; i++) if (!strcmp(argv[i], "--rotate-traffic")) rot_on = true;
+    uint32_t rot_rng = 99;
+    long rot_sent = 0;
+    std::unordered_map<uint32_t, uint64_t> rot_expect;
     for (int i = 1; i < argc; i++) if (!strcmp(argv[i], "--ddr-easy")) ddr.stress = false;
     auto tick = [&]() {
         top->SDRAM_DQ_IN = dq_next;
         ddr.step(top);
+        // second DDR3 master: screen_rotate-like single-beat writes, one per
+        // visible pixel (as on HDMI with rotation on), random addresses in its area
+        top->rot_we = 0;
+        if (rot_on && top->ce_pix && !top->hblank && !top->vblank) {
+            rot_rng = rot_rng * 1103515245u + 12345u;
+            uint32_t a = DdrModel::ROT_BASE + ((rot_rng >> 8) % 0x20000);
+            uint64_t d = ((uint64_t)(rot_rng ^ 0x5a5a5a5a) << 32) | (rot_rng ^ 0xa5a5a5a5);
+            uint32_t px = (uint32_t)d;
+            uint8_t be = (rot_rng >> 3 & 1) ? 0xF0 : 0x0F;
+            top->rot_we = 1; top->rot_addr = a; top->rot_din = ((uint64_t)px << 32) | px; top->rot_be = be;
+            rot_expect[a] = DdrModel::merge(rot_expect[a], ((uint64_t)px << 32) | px, be);
+            rot_sent++;
+        }
         top->clk = 0; top->eval();
         top->clk = 1; top->eval();
         cycle++;
@@ -240,6 +259,12 @@ int main(int argc, char** argv) {
         prev_vblank = top->vblank;
     }
     printf("DDR3 frame buffer: %ld words written, %ld read, %ld bad addresses\n", ddr.words_written, ddr.words_read, ddr.errors);
+    if (rot_on) {
+        long bad = 0;
+        for (auto& kv : rot_expect) if (ddr.rot[kv.first] != kv.second) bad++;
+        printf("DDR3 second master: %ld writes sent, %ld arrived, %zu addresses, %ld wrong%s\n",
+               rot_sent, ddr.rot_writes, rot_expect.size(), bad, (bad || ddr.rot_writes != rot_sent) ? "  FAIL" : "  ok");
+    }
     printf("ran %d frames from SDRAM (%.1f ms); SDRAM reads %ld, refreshes %ld\n",
            frames, (cycle - run_start) / 96000.0, sd.reads, sd.refreshes);
 

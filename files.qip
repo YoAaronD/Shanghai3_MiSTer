@@ -30,6 +30,7 @@ set_global_assignment -name SYSTEMVERILOG_FILE rtl/shangha3_blitter.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/shangha3_video.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/shangha3_board.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/shangha3_mem.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/shangha3_ddr_arb.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/shangha3_top.sv
 
 # CRT Adjust (rmonic79, unmodified) + Shanghai III glue (adapted from Kyle Lester's Nostradamus core)

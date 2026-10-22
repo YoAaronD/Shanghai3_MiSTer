@@ -25,7 +25,8 @@
 
 module shangha3_video (
     input  logic        clk,
-    input  logic        reset,
+    input  logic        reset,        // power-up only (display path and DDR3 master)
+    input  logic        clear,        // board reset: blank the screen, clear the draw buffer
     input  logic        ce_pix,
     input  logic [8:0]  hcnt,
     input  logic [8:0]  vcnt,
@@ -69,9 +70,31 @@ module shangha3_video (
     logic [16:0] cp_raddr;
     logic [11:0] cp_q;
 
+    // Board reset (including every ROM download) clears the draw buffer, as
+    // MAME starts with an empty bitmap. The sweep takes 86016 clocks (0.9 ms)
+    // and runs to the end even if the reset is shorter; the blitter is held
+    // meanwhile (via `copying`). Port A is shared with the blitter.
+    logic        clearing;
+    logic [16:0] clr_addr;
     always_ff @(posedge clk) begin
-        if (fb_we) fb_draw[fb_addr] <= fb_wdata;
-        fb_rdata <= fb_draw[fb_addr];
+        if (reset) begin
+            clearing <= 1'b0;
+            clr_addr <= '0;
+        end else if (clear) begin
+            clearing <= 1'b1;
+            clr_addr <= '0;
+        end else if (clearing) begin
+            if (clr_addr == 17'(FB_SIZE - 1)) clearing <= 1'b0;
+            else clr_addr <= clr_addr + 17'd1;
+        end
+    end
+    wire [16:0] fa_addr  = clearing ? clr_addr : fb_addr;
+    wire        fa_we    = clearing ? 1'b1     : fb_we;
+    wire [11:0] fa_wdata = clearing ? 12'd0    : fb_wdata;
+
+    always_ff @(posedge clk) begin
+        if (fa_we) fb_draw[fa_addr] <= fa_wdata;
+        fb_rdata <= fb_draw[fa_addr];
     end
     always_ff @(posedge clk) cp_q <= fb_draw[cp_raddr];
 
@@ -92,9 +115,10 @@ module shangha3_video (
     logic [47:0] pack;
     logic        wr_busy;          // DDR3 writes of this copy not finished
     logic        disp_valid;       // a complete frame is in DDR3
+    logic        need_fresh, fresh_copy;
     logic        wf_pop;
 
-    assign copying = rd_busy;      // blitter may write once every pixel has been read
+    assign copying = rd_busy || clearing;   // blitter may write once every pixel has been read
 
     always_comb begin
         wf_we    = cp_v && cp_lane == 2'd3;
@@ -167,12 +191,22 @@ module shangha3_video (
             wr_word    <= '0;
             wr_busy    <= 1'b0;
             disp_valid <= 1'b0;
+            need_fresh <= 1'b1;
+            fresh_copy <= 1'b0;
             rd_pending <= 1'b0;
             vcnt_q     <= '0;
         end else begin
+            // the screen stays black from a board reset until a whole frame,
+            // copied after the draw buffer was cleared, is in DDR3
+            if (clear || clearing) begin
+                disp_valid <= 1'b0;
+                need_fresh <= 1'b1;
+            end
             if (vblank_start && !rd_busy && !wr_busy) begin
-                wr_busy <= 1'b1;
-                wr_word <= '0;
+                wr_busy    <= 1'b1;
+                wr_word    <= '0;
+                fresh_copy <= need_fresh && !clear && !clearing;
+                if (!clear && !clearing) need_fresh <= 1'b0;
             end
 
             // at the start of each line, fetch the next visible line
@@ -213,7 +247,7 @@ module shangha3_video (
                             wr_word <= wr_word + 15'(BURST);
                             if (wr_word == 15'(FB_WORDS - BURST)) begin
                                 wr_busy    <= 1'b0;
-                                disp_valid <= 1'b1;
+                                if (fresh_copy) disp_valid <= 1'b1;
                             end
                         end
                     end

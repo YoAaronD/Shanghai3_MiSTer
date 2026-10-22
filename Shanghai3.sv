@@ -34,9 +34,28 @@ assign BUTTONS   = 0;
 
 //////////////////////////////////////////////////////////////////
 
+assign FB_FORCE_BLANK = 0;
+
+// Orientation (HDMI only; the native 15 kHz output is never rotated), status[9:8]:
+//   Horizontal    as the PCB
+//   Vertical CW   HDMI scaler shows the picture turned 90 degrees clockwise
+//   Vertical CCW  ... counter-clockwise
+// for players with a vertical (TATE) monitor. Uses the framework's screen_rotate
+// (framebuffer in DDR3 at 0x24000000), which shares the DDRAM port with the
+// core's display buffer through rtl/shangha3_ddr_arb.sv. Needs MISTER_FB (qsf).
+wire [1:0] orient     = status[9:8];
+wire       direct_video;
+wire       no_rotate  = direct_video | (orient == 2'd0) | (orient == 2'd3);
+wire       rotate_ccw = (orient == 2'd2);
+wire       video_rotated;
+wire        rot_we;          // screen_rotate's DDR3 writes, to the arbiter in shangha3_top
+wire [28:0] rot_addr;
+wire [63:0] rot_din;
+wire  [7:0] rot_be;
+
 wire [1:0] ar = status[122:121];
-assign VIDEO_ARX = (!ar) ? 12'd4 : (ar - 1'd1);
-assign VIDEO_ARY = (!ar) ? 12'd3 : 12'd0;
+assign VIDEO_ARX = (!ar) ? (no_rotate ? 12'd4 : 12'd3) : (ar - 1'd1);
+assign VIDEO_ARY = (!ar) ? (no_rotate ? 12'd3 : 12'd4) : 12'd0;
 
 `include "build_id.v"
 localparam CONF_STR = {
@@ -44,6 +63,7 @@ localparam CONF_STR = {
 	"-;",
 	"O[122:121],Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",
 	"O[5:3],Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%,CRT 75%;",
+	"O[9:8],Orientation,Horizontal,Vertical CW,Vertical CCW;",
 	"P1,CRT Adjust;",
 	"P1O[96],CRT Adjust,Off,On;",
 	"H1P1O[116:112],CRT H-Size,0,+1,+2,+3,+4,+5,+6,+7,+8,+9,+10,-12,-11,-10,-9,-8,-7,-6,-5,-4,-3,-2,-1;",
@@ -83,6 +103,8 @@ hps_io #(.CONF_STR(CONF_STR)) hps_io
 	.gamma_bus(gamma_bus),
 
 	.forced_scandoubler(forced_scandoubler),
+	.direct_video(direct_video),
+	.video_rotated(video_rotated),
 	.buttons(buttons),
 	.status(status),
 	.status_menumask({14'd0, ~status[96], 1'b0}),   // H1: hide the CRT Adjust amounts while Off
@@ -130,7 +152,9 @@ always @(posedge clk_sys)
 // PCB 200002 (active low): 0 coin1, 1 coin2, 2 service, 3 start1, 4 start2, 5 test
 
 wire [15:0] in_inputs = ~{2'b00, joy2[5:0], 2'b00, joy1[5:0]};
-wire  [6:0] in_system = ~{1'b0, status[6], joy1[8] | joy2[8], joy2[6], joy1[6], joy2[7], joy1[7]};
+// SYSTEM (MAME shangha3): 0 coin1, 1 coin2, 2 service1 (service credit), 3 start1, 4 start2,
+// 5 service-mode switch (OSD "Service Mode"). Joystick: 6 Start, 7 Coin, 8 Service.
+wire  [6:0] in_system = ~{1'b0, status[6], joy2[6], joy1[6], joy1[8] | joy2[8], joy2[7], joy1[7]};
 
 //////////////////////////   CORE   //////////////////////////////
 
@@ -180,6 +204,10 @@ shangha3_top core
 	.ddr_din(DDRAM_DIN),
 	.ddr_be(DDRAM_BE),
 	.ddr_we(DDRAM_WE),
+	.rot_we(rot_we),
+	.rot_addr(rot_addr),
+	.rot_din(rot_din),
+	.rot_be(rot_be),
 
 	.SDRAM_CLK(SDRAM_CLK),
 	.SDRAM_CKE(SDRAM_CKE),
@@ -196,6 +224,29 @@ shangha3_top core
 
 //////////////////////////   VIDEO   /////////////////////////////
 // 384 x 224 visible, 8 MHz pixel clock, 512 x 263 total (59.41 Hz)
+
+// Loading bar. During a ROM download the board is held in reset, but the
+// video timing keeps running (sync never stops, so CRTs stay locked) and the
+// picture is black; a progress bar is drawn on top. 256 x 16 pixels, centred.
+reg  [8:0] lx = 9'd0, ly = 9'd0;
+reg        lhbl_d = 1'b0;
+always @(posedge clk_sys) if (ce_pix) begin
+	lhbl_d <= hbl;
+	lx <= hbl ? 9'd0 : lx + 9'd1;                       // 0..383 on visible pixels
+	if (hbl && !lhbl_d) ly <= vbl ? 9'd0 : ly + 9'd1;   // 0..223 on visible lines
+end
+reg  [28:0] dl_prod;
+reg   [8:0] dl_fill;                                     // 0..256 pixels done
+always @(posedge clk_sys) begin
+	dl_prod <= ioctl_addr[21:0] * 7'd93;                 // 93 / 2^20 ~= 256 / 0x2C0000
+	dl_fill <= (dl_prod[28:20] > 9'd256) ? 9'd256 : dl_prod[28:20];
+end
+wire loading = ioctl_download && (ioctl_index == 16'd0);
+wire in_box  = (lx >= 9'd63) && (lx <= 9'd320) && (ly >= 9'd103) && (ly <= 9'd120);
+wire on_edge = (lx == 9'd63) || (lx == 9'd320) || (ly == 9'd103) || (ly == 9'd120);
+wire filled  = (lx >= 9'd64) && ((lx - 9'd64) < dl_fill);
+wire [23:0] load_rgb = !in_box ? 24'h000000 : on_edge ? 24'hC0C0C0 : filled ? 24'hF0F0F0 : 24'h202020;
+wire [23:0] core_rgb = loading ? load_rgb : {r, g, b};
 
 // CRT Adjust (analog CRT geometry: H-Size, H-Position, V-Shift). Off = exact bypass.
 reg  vs_d = 1'b0;
@@ -214,7 +265,7 @@ s3_crt_adjust #(.SYS_HZ(96_000_000), .PIX_DIV(12), .HTOTAL(512), .VTOTAL(263)) c
 	.osd_hpos(status[104:101]),
 	.osd_vshift(status[108:105]),
 	.sd_off((status[5:3] == 3'd0) && !forced_scandoubler),
-	.rgb_in({r, g, b}),
+	.rgb_in(core_rgb),
 	.hblank_in(hbl),
 	.vblank_in(vbl),
 	.hsync_in(hs),
@@ -253,6 +304,41 @@ arcade_video #(.WIDTH(384), .DW(24)) arcade_video
 	.fx(status[5:3]),
 	.forced_scandoubler(forced_scandoubler),
 	.gamma_bus(gamma_bus)
+);
+
+screen_rotate screen_rotate
+(
+	.CLK_VIDEO(CLK_VIDEO),
+	.CE_PIXEL(CE_PIXEL),
+	.VGA_R(VGA_R),
+	.VGA_G(VGA_G),
+	.VGA_B(VGA_B),
+	.VGA_HS(VGA_HS),
+	.VGA_VS(VGA_VS),
+	.VGA_DE(VGA_DE),
+
+	.rotate_ccw(rotate_ccw),
+	.no_rotate(no_rotate),
+	.flip(1'b0),
+	.video_rotated(video_rotated),
+
+	.FB_EN(FB_EN),
+	.FB_FORMAT(FB_FORMAT),
+	.FB_WIDTH(FB_WIDTH),
+	.FB_HEIGHT(FB_HEIGHT),
+	.FB_BASE(FB_BASE),
+	.FB_STRIDE(FB_STRIDE),
+	.FB_VBL(FB_VBL),
+	.FB_LL(FB_LL),
+
+	.DDRAM_CLK(),                       // DDRAM_CLK is clk_sys (assigned above); CLK_VIDEO is the same clock
+	.DDRAM_BUSY(1'b0),                  // screen_rotate ignores it; the arbiter queues its writes
+	.DDRAM_BURSTCNT(),
+	.DDRAM_ADDR(rot_addr),
+	.DDRAM_DIN(rot_din),
+	.DDRAM_BE(rot_be),
+	.DDRAM_WE(rot_we),
+	.DDRAM_RD()
 );
 
 //////////////////////////   AUDIO   /////////////////////////////

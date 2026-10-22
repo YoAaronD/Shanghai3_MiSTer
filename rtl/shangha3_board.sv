@@ -20,6 +20,7 @@
 module shangha3_board (
     input  logic        clk,          // 96 MHz
     input  logic        reset,
+    input  logic        vid_reset,    // video timing + display path: power-up only, so sync never stops
     input  logic        pause,        // freeze CPU and sound (OSD open); video keeps running
 
     // program ROM (512 KB, 16-bit, big-endian words)
@@ -113,7 +114,6 @@ module shangha3_board (
         if (reset) begin
             cpu_div   <= '0;
             cpu_phase <= 1'b0;
-            pix_div   <= '0;
             psg_div   <= '0;
         end else begin
             if (!pause_q) begin
@@ -121,8 +121,14 @@ module shangha3_board (
                 if (cpu_div == 2'd2) cpu_phase <= ~cpu_phase;
                 psg_div <= psg_div + 6'd1;
             end
-            pix_div <= (pix_div == 4'd11) ? 4'd0 : pix_div + 4'd1;
         end
+    end
+
+    // The pixel clock and video timing run through board resets and ROM
+    // downloads (only vid_reset stops them), so a CRT never loses sync.
+    always_ff @(posedge clk) begin
+        if (vid_reset) pix_div <= '0;
+        else           pix_div <= (pix_div == 4'd11) ? 4'd0 : pix_div + 4'd1;
     end
 
     assign en_phi1 = (cpu_div == 2'd2) && !cpu_phase && !pause_q;
@@ -137,7 +143,7 @@ module shangha3_board (
     logic       vblank_start;
 
     shangha3_video_timing u_timing (
-        .clk, .reset, .ce_pix,
+        .clk, .reset(vid_reset), .ce_pix,
         .hcnt, .vcnt, .hblank, .vblank, .hsync, .vsync, .vblank_start, .vblank_next
     );
 
@@ -298,7 +304,7 @@ module shangha3_board (
     );
 
     shangha3_video u_video (
-        .clk, .reset, .ce_pix, .hcnt, .vcnt, .vblank_start,
+        .clk, .reset(vid_reset), .clear(reset), .ce_pix, .hcnt, .vcnt, .vblank_start,
         .fb_addr, .fb_we, .fb_wdata, .fb_rdata,
         .copying   (fb_copying),
         .pal_addr  (vid_pal_addr),

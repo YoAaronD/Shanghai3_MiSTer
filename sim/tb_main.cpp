@@ -144,8 +144,10 @@ int main(int argc, char** argv) {
     };
 
     top->reset = 1;
+    top->vid_reset = 1;
     for (int i = 0; i < 64; i++) tick();
     top->reset = 0;
+    top->vid_reset = 0;
 
     // 1 frame = 512 * 263 pixels * 12 clocks
     const uint64_t max_cycles = (uint64_t)(frames + 1) * 512 * 263 * 12;

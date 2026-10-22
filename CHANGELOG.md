@@ -13,6 +13,25 @@ Each entry below gives both: version, then date stamp.
 
 ---
 
+## v0.1.4 — 20261022
+
+Fixes from Aaron's hardware testing, plus HDMI rotation.
+
+**Fixed**
+- **Start and Service buttons.** Start added a credit (it was wired to the board's "service coin" input) and Service acted as Start. The SYSTEM port bits are now in MAME's order: coin 1, coin 2, service, start 1, start 2, service-mode switch.
+- **CRTs lost sync while a game loads.** The board is held in reset during the ROM download, and that used to stop the video timing as well. The pixel clock and video timing now run through every reset and download (only a power-up/PLL reset stops them), so the picture is black but in sync.
+- **Draw buffer cleared on every board reset,** as MAME starts with an empty bitmap: no leftover picture from before a reset or a reload. The sweep takes 0.9 ms; the blitter waits for it.
+
+**Added**
+- **Loading bar** while the ROMs download (256 × 16 pixels, centred).
+- **Orientation: Horizontal / Vertical CW / Vertical CCW** (OSD). For vertical (TATE) monitors on HDMI, using the MiSTer framework's `screen_rotate` (as in Kyle's cores). The 15 kHz analog output is never rotated.
+  - `screen_rotate` needs the DDR3 port, which the display buffer already uses. The new `rtl/shangha3_ddr_arb.sv` shares it: rotation writes are queued in a 64-entry FIFO and sent between the display buffer's bursts.
+  - Tested in simulation with a second master writing every visible pixel (37 M writes): all arrived, none dropped, and the game's frames were unchanged.
+  - `MISTER_FB` is now enabled in the qsf.
+
+**Checked**
+- **Flip Screen DIP:** in simulation the core flips the picture exactly like MAME. The game reads the switch once, at the end of its power-on self-test (about 12 s), so a change only shows after a reset and the self-test.
+
 ## v0.1.3 — 20261021
 
 **Added**

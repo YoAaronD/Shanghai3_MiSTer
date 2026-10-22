@@ -2,36 +2,52 @@
 
 **What this is:** everything a new Claude session needs to continue this project, or to start the next arcade core, without the original conversations. The repo itself (`github.com/YoAaronD/Shanghai3_MiSTer`, private) is the master copy of the code. This file lives in it as `docs/HANDOFF.md`.
 
+**Companion files:**
+- `CLAUDE.md` (repo root): short steering rules and the regression gate.
+- `docs/SAME_BOARD_GAMES.md`: the implementation plan for Hebereke no Popoon and Blocken, the next work.
+- `CHANGELOG.md`: what changed in each version.
+
+**2026-10-22: account switch.** Development moves from Aaron's work Claude account (where v0.1.0–v0.1.3 were built) to his personal Claude account. Nothing from the old sessions is needed beyond this repo. The old sandbox (built tools, MAME, ROM extracts) does not carry over; §0 lists how to rebuild it.
+
 - **Owner:** Aaron (GitHub `YoAaronD`, commits as "AjaxHC" with the GitHub noreply email).
   - Owns a real Shanghai III (Japan) PCB and a MiSTer.
-  - Has a Mac, plus a Windows PC laptop with GitHub Desktop (Quartus being set up on it).
+  - Has a Mac, plus a Windows PC laptop with GitHub Desktop and Quartus Prime Lite 17.0.2 (project at `C:\cores\Shanghai3_MiSTer`). The PC also has MAME.
   - Has no measuring tools beyond basic electrical ones.
   - Wants to build **several more arcade cores** after this one.
 - **Friend:** Kyle (github.com/kyledlester) has built several MiSTer arcade cores with AI assistance. His Nostradamus core was the model for this project's workflow and CRT Adjust glue.
-- **State:** the core is written and verified in simulation end to end (CPU, blitter, video, sound, SDRAM, MiSTer download, CRT Adjust). First Quartus build (2026-10-20) ran out of block RAM; fixed by moving the display buffer to DDR3 (rebuild pending). Not yet run on a MiSTer.
+- **State (v0.1.3, 20261021):** Shanghai III (Japan) **runs on Aaron's MiSTer**.
+  - It meets timing at 96 MHz.
+  - Its boot checks match his real PCB on video.
+  - He played two full games: "feels right"; all controls, Service Mode and pause-on-OSD work.
+  - Remaining before v1.0.0: sound balance against the PCB (he has a 4-minute PCB video to share), a CRT Adjust check, and the optional one-frame timing decision (§10).
+  - Next big step: the same-board games (`docs/SAME_BOARD_GAMES.md`).
 
 ---
 
 ## 0. Starting the next session (do this first)
 
-### Checklist for Aaron
-1. **Attach the GitHub repo to the session** (`YoAaronD/Shanghai3_MiSTer`, or a new repo for a new core, created empty on github.com first). Claude can then commit and push directly. Without it, Claude's sandbox can't push, and every change comes back as a zip for GitHub Desktop.
-2. **Attach the ROM zip(s)** for the game, or link the local folder that holds them. ROMs never go in the repo.
-3. Say which **MAME set name** you want (for example `shangha3j`) and which **PCB** you own, if any.
-4. Say what you can do this session (run a Quartus build, test on the MiSTer, nothing).
+### Checklist for Aaron (new account)
+1. **Make sure GitHub has everything.** Every zip from the old account must be committed and pushed, through v0.1.3 plus the docs update that added this section. The latest tag should be `v0.1.3`, and `docs/SAME_BOARD_GAMES.md` should mention "Path of least resistance". The old sandbox can't push, so GitHub is the only copy that carries over.
+2. **Connect GitHub to the personal Claude account** (Settings → Connectors / GitHub), with access to the private repo `YoAaronD/Shanghai3_MiSTer`.
+3. **Start the session with the repo attached.** Then Claude can commit and push directly. Without it, changes come back as zips for GitHub Desktop.
+4. **Attach ROMs:** `shangha3j.zip` (for regressions) plus `heberpop.zip` and/or `blocken.zip` (MAME sets; CRCs in `docs/SAME_BOARD_GAMES.md` §2.3). Or link the Mac folder that holds them. ROMs never go in the repo.
+5. **Say** which PCBs you own (heberpop? blocken?) and what you can do this session (Quartus build, MiSTer test).
 
-### Kickoff prompt (paste into a new session)
-> Continue the Shanghai III MiSTer core. The repo `YoAaronD/Shanghai3_MiSTer` is attached; read `docs/HANDOFF.md` first. ROMs: [attached zip / folder]. Today I want to: [e.g. fix the Quartus build errors below / start a new core for X]. Run `scripts/setup_sandbox.sh` before any simulation.
+### Kickoff prompt (paste into the new session)
+> Continue my MiSTer core for the Sunsoft GA9201 board. The repo `YoAaronD/Shanghai3_MiSTer` is attached. Read `CLAUDE.md`, then `docs/HANDOFF.md` §0–§1, then `docs/SAME_BOARD_GAMES.md`. Shanghai III (Japan) already works on my MiSTer (v0.1.3). Next I want Hebereke no Popoon, then Blocken, in the same core. ROMs: [attached zips / folder]. Start with the setup in HANDOFF §0, then milestone 0–1 of SAME_BOARD_GAMES §7. Ask me the §9 decisions in one batch.
 
 ### Checklist for Claude at session start
-1. Read this file, then `README.md`.
-2. Run `scripts/setup_sandbox.sh` (about 15–20 min the first time: it builds flex and Verilator and checks network access). Start it in the background while reading.
-3. `python3 scripts/romtool.py extract --out sim/roms <rom zip or folder>` to check ROM CRCs.
-4. Quick regressions (about 5 min total):
-   - `scripts/sim.sh test`
-   - `scripts/blit_test.sh 50 20`
-   - `scripts/oki_test.sh --no-stress --max 8`
-5. Ask Aaron the open questions in one batch, then work. For any run longer than 10 minutes, give a status line with an ETA.
+1. Read `CLAUDE.md`, this file (§0, §1, §4, §8, §10), then `docs/SAME_BOARD_GAMES.md`.
+2. **Tools.** Start both builds in the background while reading:
+   - `scripts/setup_sandbox.sh`: flex, Verilator 5.030, dis68k, Pillow/numpy; about 15–20 min. It prints which hosts are reachable. The personal account's network allowlist may differ from the work account's; github.com is the one host that must work.
+   - `scripts/build_mame.sh`: SDL2 + headless MAME with just this driver (shangha3*, heberpop, blocken); about 2 h on 2 cores.
+3. **ROMs:** `python3 scripts/romtool.py extract --out sim/roms <shangha3j zip or folder>` (shangha3j only until romtool gets per-set tables). Check the new sets' CRCs against `docs/SAME_BOARD_GAMES.md` §2.3.
+4. **Quick regressions** (about 5 min; all must pass before changing anything):
+   - `scripts/sim.sh test` → "0 failure(s)"
+   - `scripts/blit_test.sh 50 20` → "0 failed"
+   - `scripts/oki_test.sh --no-stress --max 8` → "PASS"
+5. **Baselines** for later comparisons, saved outside the repo: `scripts/sim.sh game 1900 --frames-out DIR --every 30`, about 50 min in the background. With MAME built: `S3_OUT=DIR S3_FRAMES=1700 /opt/src/mame/s3 shangha3j -rompath R -video none -sound none -nothrottle -snapview native -autoboot_script tools/mame/frame_log.lua`.
+6. Ask Aaron the open decisions in one batch (`docs/SAME_BOARD_GAMES.md` §9), then work. For any run over 10 minutes, send a status line with an ETA.
 
 ---
 
@@ -46,12 +62,20 @@
 | OKI M6295 (jt6295) | Done | High: all 56 phrases through download → SDRAM match a direct-ROM chip sample for sample, at game command speed under heavy SDRAM load |
 | ROM download to SDRAM, CPU cache, SDRAM controller | Done | Medium-high: simulated with a pin-level SDRAM model. Real SDRAM clock phase is untested. |
 | CRT Adjust (analog H-Size / H-Position / V-Shift) | Done | High in simulation: 59-setting bench passes |
-| MiSTer wrapper (`Shanghai3.sv`), Quartus project, MRA | Written | First Quartus build (2026-10-20): synthesis OK, **Fitter failed: out of M10K block RAM**. Fixed by moving the display buffer to DDR3; rebuild pending. |
-| Real hardware | Not yet | — |
+| MiSTer wrapper (`Shanghai3.sv`), Quartus project, MRA | Done | Builds in Quartus 17.0.2 Lite; fits after moving the display buffer to DDR3 (v0.1.0); meets 96 MHz timing, +1.118 ns setup slack (v0.1.1) |
+| Pause when OSD is open | Done (v0.1.3) | High in simulation (60-frame pause resumes frame-exact); hardware check pending |
+| Real hardware | **Runs** (v0.1.1+) | Boots; self-test order and timing match the PCB on video; two full games played; all controls and Service Mode work. The DDR3 and SDRAM paths therefore work on hardware |
+| Sound balance | Unverified | Mix levels are a guess; PCB video exists, not yet analysed |
+| CRT Adjust on hardware | Untested | Picture position is correct on Aaron's display |
 
-**Next action:** Aaron rebuilds in Quartus (Prime Lite 17.0.2; `Shanghai3.qpf`; Processing → Start Compilation) after pulling the DDR3 display-buffer change. Report:
-1. the first red error, or, if it builds,
-2. from Compilation Report → Fitter → Resource Section → **Resource Usage Summary**: the "M10K blocks" line, and any red timing paths (TimeQuest). Then test on the MiSTer (install steps are in `README.md`).
+**Next actions:**
+1. **Record the v0.1.3 M10K count:** Compilation Report → Fitter → Resource Section → Resource Usage Summary → "M10K blocks". It decides where the Z80 ROM goes (`docs/SAME_BOARD_GAMES.md` §6).
+2. **Same-board games:** follow `docs/SAME_BOARD_GAMES.md` §7, milestones 0–7.
+3. **Shanghai III v1.0.0, in parallel:**
+   - sound balance from Aaron's PCB video (AirDrop it to the Mac's linked folder; it's too large for the phone app)
+   - a CRT Adjust check on hardware
+   - the one-frame timing decision
+   - release prep (§13 phase 7)
 
 ---
 
@@ -92,6 +116,12 @@
     - all controls work, and the core menu's Service Mode works
     - the one-frame difference vs. MAME isn't noticeable in play
     - still to check: sound balance against the PCB, picture position on a CRT
+20. **v0.1.3: pause when the OSD is open** (Aaron's request, after seeing it in Raki's CV1000 core). See §4.
+21. **Handoff for the account switch** (20261022):
+    - `docs/SAME_BOARD_GAMES.md` rewritten as a detailed plan
+    - draft MRAs for heberpop and blocken in `docs/drafts/`, ROMs and DIPs generated from the driver
+    - `tools/mame/frame_log.lua` given a configurable blitter-go address
+    - `tools/mame/sound_log.lua` added for the sound section's golden reference
 
 ---
 
@@ -180,10 +210,11 @@ All logic runs on one **96 MHz** clock (2 × 48 MHz) with clock enables.
 | `rtl/shangha3_video_timing.sv` | Counters, blanking, placeholder syncs, `vblank_next` for CRT Adjust |
 | `rtl/shangha3_mem.sv` | ROM download writer, 68000 program cache, tile-row port, OKI port with a block-RAM phrase table |
 | `rtl/sdram.sv` | Sorgelig's 4-channel SDRAM controller (GPL-3.0, MiSTer-devel/Arcade-IremM92_MiSTer @68a4683), with Verilator-only port splitting |
-| `rtl/shangha3_top.sv` | Board + memory + SDRAM; shared by the MiSTer wrapper and the end-to-end simulation |
+| `rtl/shangha3_top.sv` | Board + memory + SDRAM + DDR3 arbiter; shared by the MiSTer wrapper and the end-to-end simulation |
+| `rtl/shangha3_ddr_arb.sv` | Shares the DDRAM port between the display buffer (bursts) and the framework's `screen_rotate` (single-beat writes, queued in a 64-entry FIFO, sent between bursts) |
 | `rtl/vendor/crt_adjust.sv` | rmonic79's CRT Adjust (unmodified, @c682de9) |
 | `rtl/s3_crt_adjust.sv` | CRT Adjust glue adapted from Kyle's Nostradamus core; H-Position limit table for this raster |
-| `Shanghai3.sv` | MiSTer `emu` module: hps_io menu, PLL (96 MHz), DIPs (ioctl index 254), joystick mapping, CRT Adjust, arcade_video, audio |
+| `Shanghai3.sv` | MiSTer `emu` module: hps_io menu, PLL (96 MHz), DIPs (ioctl index 254), joystick mapping, loading bar, CRT Adjust, arcade_video, `screen_rotate` (Orientation), audio |
 | `rtl/pll*`, `sys/` | From MiSTer-devel/Template_MiSTer @5dda373. PLL output hand-edited from 20 to 96 MHz. |
 | `Shanghai3.qpf/.qsf/.sdc`, `files.qip` | Quartus project. The SDC sets a 3-cycle multicycle path for fx68k-internal paths. |
 | `releases/Shanghai III (Japan).mra` | ROM stream (4 files in order, no interleave) + DIP definitions |
@@ -195,9 +226,10 @@ All logic runs on one **96 MHz** clock (2 × 48 MHz) with clock enables.
 - **CPU timing:** fx68k's phase enables pulse every 3rd clock, giving 16 MHz. Bus timing is cycle-exact. DTACK counts from AS, not DS.
 - **Blitter, two phases:**
   1. **Snapshot:** walk the list (reading words 6, 7, 10, 13 first; disabled commands are skipped). Valid commands go into a 2048 × 176-bit buffer. If any command is a tilemap, the 8K-word tilemap area is copied too. This takes about 1% of a frame.
-  2. **Draw:** a shared scaled-tile engine (MAME-equivalent 16.16 stepping), with a one-row ROM cache plus a next-row prefetch.
+  2. **Draw:** a shared scaled-tile engine (MAME-equivalent 16.16 stepping), with a one-row ROM cache plus a next-row prefetch. The clip/flip and tilemap-position multiplies are registered pipelines; two wait states (`S_D_PRE0/1`) before each tile let them settle (v0.1.1 timing fix).
 
-  The worst case is about 16.8% of a frame.
+  The worst case is about 16.9% of a frame.
+- **Queued starts (v0.1.2):** a "go" that arrives while a run is in progress is queued (`pend_cnt`, up to 3, with the list address latched in `pend_list`). While a run is queued, `scan_from` is lowered to that run's list start and `tm_from` to 0, so CPU writes to anything it will read wait until its own snapshot. Without this, the boot screen showed rows of "A" instead of "INTTURUPT WAIT" (the game issues two gos 8 µs apart, then reuses that RAM).
 - **CPU write arbitration:** a CPU write waits only for RAM words the snapshot hasn't copied yet (`scan_from`, `tm_from`). This matches MAME's instantaneous blitter; CPU loss is about 0.01%.
 - **Frame buffers:** draw → display copy at vblank start (0.9 ms of the 2.5 ms vblank). Drawing waits while the draw buffer is read; snapshotting doesn't. Tear-free, but one frame later than MAME (measured; see §10, item 2).
   - The display buffer lives in the MiSTer's DDR3 (`DDRAM_*` port, byte address 0x30000000, `DDRAM_CLK` = the 96 MHz core clock). The copy packs 4 pixels per 64-bit word (96 words per line), goes through a 128-word FIFO (MLAB) and is written in 8-word bursts. Scan-out reads each line during the previous line (12 bursts of 8) into a 2-line BRAM buffer. The screen stays black until the first complete copy.
@@ -215,7 +247,21 @@ All logic runs on one **96 MHz** clock (2 × 48 MHz) with clock enables.
 - **Audio:** YM2149 high-passed, mixed as `snd = oki × 2 + ay × 12`, saturated to 16-bit signed. The levels are a guess.
 - **Inputs:** MiSTer joystick bits 0–3 directions, 4 = B1, 5 = B2, 6 = Start, 7 = Coin, 8 = Service. OSD "Service Mode" is status[6].
 - **Pause when OSD is open** (status[7], 0 = On by default): `OSD_STATUS & ~status[7]` freezes the CPU clock enables (mid-cycle, resuming exactly), the YM2149 and OKI enables, and mutes the output. Video timing, the frame-buffer copy and the blitter keep running, so the screen holds the last picture. Requested by Aaron after seeing it in Raki's CV1000 core (that repo publishes only its simulation, so this uses the standard MiSTer `OSD_STATUS` signal). Verified: `sim.sh game ... --pause 900 60` gives 60 frozen frames and then exactly the normal run shifted by 60 frames.
-- **OSD status bits used:** 0 reset; 3–5 scandoubler fx; 6 service; 7 pause-when-OSD-open (0 = on); 96 CRT Adjust on; 101–104 H-Position; 105–108 V-Shift; 112–116 H-Size; 121–122 aspect.
+- **Resets (v0.1.4):** `vid_reset` (= `sdram_init`, i.e. PLL not locked) is the only reset of the pixel clock, video timing, display path and DDR3 master, so sync never stops. The board reset (`reset || ioctl_download || sdram_init || !mem_ready`) resets the CPU, blitter, sound and I/O. In the video module it only acts as `clear`: black screen, a 0.9 ms sweep that zeroes the draw buffer (blitter held), and the picture returns with the first complete copy made after the sweep. Never reset the DDR3 master mid-burst; that's why it isn't on the board reset.
+- **Loading bar:** drawn in `Shanghai3.sv` while `ioctl_download && ioctl_index == 0`, from `ioctl_addr` (scaled by 93/2^20 to 256 pixels for the 0x2C0000-byte stream). Update the scale if the stream length changes (e.g. the uniform layout in `docs/SAME_BOARD_GAMES.md` §3.1).
+- **Orientation (v0.1.4):** status[9:8] = Horizontal / Vertical CW / Vertical CCW. `screen_rotate` (in `sys/arcade_video.v`) writes the rotated picture to DDR3 at 0x24000000 and switches the HDMI scaler to framebuffer mode. Requires `MISTER_FB` in the qsf. Aspect ratio swaps to 3:4 when rotated. `screen_rotate` ignores `DDRAM_BUSY`, so the arbiter queues its writes.
+- **Inputs (fixed in v0.1.4):** SYSTEM = {1, service-mode switch (OSD), start2, start1, service1, coin2, coin1}, with joystick 6 = Start, 7 = Coin, 8 = Service (service1 is a service credit). Before v0.1.4 Start and Service were in the wrong bits.
+- **OSD status bits used:** 0 reset; 3–5 scandoubler fx; 6 service; 7 pause-when-OSD-open (0 = on); 8–9 orientation; 96 CRT Adjust on; 101–104 H-Position; 105–108 V-Shift; 112–116 H-Size; 121–122 aspect.
+- **Invariants: don't break these**
+  - **Instant-at-go semantics:** every blitter run must draw RAM exactly as it was when its "go" was written, including queued runs. Enforced only by the CPU write arbitration in `shangha3_board.sv` (`blit_wr_conflict`, using `scan_from`/`tm_from`). CPU *reads* are never held.
+  - **The CPU stack lives inside the list/tilemap RAM area.** Any rule that holds CPU writes for long (e.g. the whole list while queued) stalls the CPU; that's correct, but only acceptable because double gos are rare.
+  - **fx68k phases must alternate:** `en_phi1` and `en_phi2` come from `cpu_div`/`cpu_phase`. Pause freezes the counters themselves, not just the enables, so the phase order survives a pause.
+  - **DTACK counts from AS**, not UDS/LDS. A held RAM write must also delay its write strobe (`ram_wr_done`).
+  - **The OKI phrase table is read from BRAM, never SDRAM** (jt6295 drops commands during slow table reads). `oki_rom_ok` may only be high while the address is unchanged and the data matches.
+  - **CPU cache:** the tag read is stale for 2 clocks after a fill (`fill_we_d` guard). A hit needs `addr_q == prog_addr`.
+  - **DDR3 display buffer:** the copy holds the blitter only while the draw buffer is being *read*. The 128-word FIFO absorbs DDR3 stalls. A new copy starts only if the previous one finished; otherwise that frame is skipped. The screen is black until `disp_valid`.
+  - **Palette is read live during scan-out,** so palette writes take effect mid-frame. That matches the PCB (green stripes at COLOR RAM CHECK) and differs from MAME; don't "fix" it.
+  - **Timing hygiene at 96 MHz:** no dividers; register both sides of every multiplier; check TimeQuest Setup Summary on each build (`output_files/timing_paths.txt` lists failing endpoints).
 - **Estimated block RAM:**
 
 | Item | Size |
@@ -250,7 +296,10 @@ All logic runs on one **96 MHz** clock (2 × 48 MHz) with clock enables.
 | `scripts/sim.sh game N [--frames-out DIR --every K --wav F --no-rom-log --log-from F]` | Full board on the real ROMs (served directly); bus trace, frames, audio | ~1.25 s per frame |
 | `scripts/sim_top.sh ROMDIR N [--frames-out DIR --every K --check-sdram --wav F]` | **End to end:** emulated MiSTer download → pin-level SDRAM model → boot from SDRAM | ~1.3–2 s per frame |
 | `scripts/build_mame.sh` | Builds SDL2 + a headless MAME with only this driver (`/opt/src/mame/s3`) | ~2 h once |
-| `S3_OUT=DIR /opt/src/mame/s3 shangha3j -rompath R -video none -sound none -nothrottle -snapview native -autoboot_script tools/mame/frame_log.lua` | Real MAME: every frame as PNG + blitter-start log (`-wavwrite F` for audio) | ~10 s for 1,700 frames |
+| `S3_OUT=DIR /opt/src/mame/s3 shangha3j -rompath R -video none -sound none -nothrottle -snapview native -autoboot_script tools/mame/frame_log.lua` | Real MAME: every frame as PNG + blitter-start log (`-wavwrite F` for audio). `S3_GO=100008` for blocken | ~10 s for 1,700 frames |
+| `S3_OUT=DIR S3_FRAMES=N /opt/src/mame/s3 heberpop ... -autoboot_script tools/mame/sound_log.lua` | Real MAME: 68000 sound-latch writes and every Z80 I/O read/write, timestamped (`S3_LATCH=10000F` for blocken). Z80 taps untested | seconds |
+| `sim.sh game N ... --pause FROM LEN` | Holds the pause input for LEN frames from frame FROM | — |
+| `sim_top.sh ROMDIR N --rotate-traffic` | Adds a second DDR3 master writing every visible pixel (like `screen_rotate`) and checks every write arrived intact | as `sim_top.sh` |
 | `scripts/mame_latency.py MAME_DIR HDL_DIR TRACE [first last]` | Frame latency of the core vs. MAME (HDL frames from `sim.sh game N --frames-out DIR --every 1`) | ~1 min |
 | `scripts/blit_test.sh EVERY MAX [--dump-filter zoom\|tilemap]` (`LATENCY=16` env) | Replays real blitter runs through the HDL blitter; pixel-exact check | seconds to minutes |
 | `scripts/oki_test.sh [--no-stress] [--max N] [--gap CLK] [--wav F]` | Two jt6295s, one through download → SDRAM, one direct; every valid phrase, sample-for-sample | ~1 min (`--max 8 --no-stress`), ~20 min full |
@@ -276,9 +325,9 @@ All logic runs on one **96 MHz** clock (2 × 48 MHz) with clock enables.
 - **The sandbox can only push to repos attached to the session.** It cannot create repos, and it cannot push to a repo created mid-session. Attach the repo at session start.
 - **If not attached:** Claude sends a zip of the changed files (paths preserved). Aaron unzips it into the repo folder, then in GitHub Desktop: write a summary → Commit to main → Push origin.
 - Aaron's local repo folder (e.g. `C:\cores\Shanghai3_MiSTer`) is also the Quartus project folder. Quartus output folders are git-ignored.
-- **History so far:**
-  - The initial import, pushed by Aaron.
-  - The OKI phrase-table fix and the setup script + this handoff, delivered as zips for Aaron to commit. If those changes are missing from the repo, they need committing first.
+- **History so far:** every change was delivered as a zip and committed by Aaron from GitHub Desktop. Tags: `v0.1.0` (DDR3 display buffer), `v0.1.1` (timing), `v0.1.2` (boot "A" fix), `v0.1.3` (pause on OSD). The account-switch docs update follows v0.1.3, untagged.
+- **Delivering builds:** Quartus writes `output_files/Shanghai3.rbf`. **Project → Clean Project deletes it** until the next compile finishes; `output_files/` is git-ignored. Releases go in `releases/` as `Shanghai3_YYYYMMDD.rbf`.
+- **Quartus leaves `c5_pin_model_dump.txt` in the project folder;** it's git-ignored now. If GitHub Desktop ever lists a build file, ignore it rather than committing it.
 
 ---
 
@@ -314,6 +363,8 @@ All logic runs on one **96 MHz** clock (2 × 48 MHz) with clock enables.
 | Verilator re-ran an in-block initializer in `sdram.sv` | Keep initialized declarations at module scope |
 | First Quartus fit: out of M10K (two 384 × 224 frame buffers plus the MiSTer framework) | Count M10K blocks, not bits, against the 553 available, and leave room for the framework; do an early Quartus build with the big memories in place |
 | First fitting build missed 96 MHz timing by 8.8 ns: a divide-by-10 (shadow colour) in one clock, plus unregistered multiplies in the blitter | Use no dividers and register around every multiplier; check TimeQuest's Setup Summary on every build. `output_files/timing_paths.txt` lists every failing endpoint |
+| Start added credits and Service acted as Start: SYSTEM port bits wired in the wrong order (start1 on the service1 bit) | Check every input bit against the driver's `INPUT_PORTS` with a table, and test each button on hardware |
+| CRT lost sync during every ROM load: the video timing was reset with the board | Give the video timing its own power-up-only reset; blank the picture instead of stopping it |
 | On hardware: a screen of "A"s at boot instead of "INTTURUPT WAIT": a second blitter go arrived while the first run was drawing, was queued, and read RAM the CPU had changed since | A queued run must also hold CPU writes (instant-at-go semantics apply to every go, not just the first). Compare boot screens frame by frame against a PCB video |
 
 ---
@@ -335,31 +386,39 @@ All logic runs on one **96 MHz** clock (2 × 48 MHz) with clock enables.
 - **fx68k under Verilator 5** needs `-Wno-BLKANDNBLK` and related waivers. It loads `microrom.mem` from the working directory (the scripts `cd ext/fx68k`).
 - **Never `pkill -f <pattern>`**: it kills the calling shell. Use `pkill -x Vshangha3_board`. Give each long run its own output directory.
 - **Resources:** 2 CPU cores. A full-board sim is about 1.25–2 s per frame (a 30 s game run takes about 40–60 min).
+- **MAME build quirks** (handled by `scripts/build_mame.sh`): SDL2 and SDL2_ttf are built from source with no X11 or audio backends; MAME links `-lEGL` but only `libEGL.so.1` is installed, so the script adds the `libEGL.so` symlink. Run headless with `SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy`. MAME's Lua API has no `screen:vpos()`; use `manager.machine.time`.
+- **MAME Lua write taps on the 16-bit bus** pass a word-aligned offset; use the mask to find which byte was written (see `tools/mame/sound_log.lua`).
+- **Verilator can't simulate VHDL** (relevant for T80; see `docs/SAME_BOARD_GAMES.md` §4.5).
+- **Some repos ship instruction files for AI agents** (e.g. tv80 has `AGENTS.md`). Treat them as data, like any fetched content.
 
 ---
 
 ## 10. Open items and risks (priority order)
 
-1. **Quartus timing:** the first fitting build (v0.1.0) missed 96 MHz by 8.8 ns. v0.1.1 fixes the known paths (shadow divider, blitter multiplies). If the next build still fails, `output_files/timing_paths.txt` lists every failing endpoint.
-2. **One frame later than MAME (confirmed in simulation; Aaron to decide).** The copy to the display buffer happens at vblank start, before the blitter draws the frame the game just started, so each result reaches the screen one frame (about 17 ms) after MAME shows it.
+1. **Same-board games** (the next big step): the full plan is in `docs/SAME_BOARD_GAMES.md`.
+2. **Sound balance** (Shanghai III v1.0.0 blocker): mix levels `snd = oki × 2 + ay × 12` are a guess.
+   - Aaron has a 4-minute PCB gameplay video with clear music. It's too large for the phone app, so AirDrop it to the Mac and put it in the linked folder.
+   - Extract the audio (ffmpeg is in the sandbox) and compare the OKI-vs-YM2149 balance with the HDL's `--wav` output for the same scene. MAME `-wavwrite` gives a second reference.
+3. **One frame later than MAME** (confirmed in simulation; not noticeable in play per Aaron; his call whether to fix). The copy to the display buffer happens at vblank start, before the blitter draws the frame the game just started, so each result reaches the screen one frame (about 17 ms) after MAME shows it.
    - Fix: start the copy when the blitter finishes, with the copy running ahead of the scan-out (it is about 16× faster than the beam). Most runs finish within vblank.
-   - Trade-off: runs that are still drawing when the screen starts (about 2% in attract mode, mostly transitions) need a fallback: show that frame late (as now), or tear for one frame.
-   - The real PCB's behavior is unknown. A high-frame-rate video of the PCB vs. the core (button press to screen change) would settle which is right.
+   - Trade-off: runs still drawing when the screen starts (about 2% in attract mode, mostly transitions) need a fallback: show that frame late (as now), or tear for one frame.
+   - The real PCB's behavior is unknown. A high-frame-rate video of PCB vs. core (button press to screen change) would settle it.
    - Re-measure after any change with `scripts/mame_latency.py`.
-3. **Frames that differ from MAME** at the 1-frame offset: about 90 of 1,001, during title transitions. Most likely mid-frame palette changes, which the PCB also shows (confirmed for the COLOR RAM CHECK). Some differ by only a few color levels; check the shadow rounding against MAME's palette shadow table.
-4. **DDR3 display buffer on real hardware:** if the picture is black, garbled or rolling while the game runs (sound and controls fine), suspect the DDR3 path first (address 0x30000000, bursts of 8, `DDRAM_CLK`).
-5. **SDRAM on real hardware:** CAS latency 3, with SDRAM_CLK from an inverted DDR output (as in M92). Corrupt graphics or a crash means suspecting clock phase.
-6. **Audio mix levels:** tune by ear against MAME or the PCB.
-7. **Video:** sync positions are guesses (HS 416–447, VS lines 244–246); check centering. If HS_START changes, recompute the CRT Adjust table (formula in `rtl/s3_crt_adjust.sv`) and run `scripts/crt_test.sh`.
-8. **CPU cache miss cost:** about 1.6% slower during the boot ROM checksum. Watch for slowdown in gameplay, where the game is at its CPU limit.
-9. **Unknowns that need the PCB** (logic analyzer about $15–30, EPROM programmer about $50–70): real blitter speed and arbitration, frame buffering, refresh rate.
-10. **Same-board games:** full plan in `docs/SAME_BOARD_GAMES.md`. Hebereke no Popoon and Blocken need:
-   - a Z80 + YM3438 (jt12) sound section
-   - a sound latch
-   - OKI banking (bank switching also affects the phrase-table copy)
-   - `shadow_en = 0`
-   - a different memory map (both map the graphics ROM into CPU space at 800000; Blocken also moves the I/O and palette)
-   - for Blocken, zoom and rotation work
+4. **CRT Adjust on hardware:** untested on a CRT. Picture position is correct on Aaron's display.
+   - **Also pending on hardware (v0.1.4):**
+     - CRT stays in sync while loading, and the bar fills
+     - Start / Coin / Service buttons
+     - Orientation CW/CCW on HDMI
+     - Flip Screen after a reset (it works in simulation)
+5. **Frames that differ from MAME** at the 1-frame offset: about 86 of 1,001, during title transitions. Most are likely mid-frame palette changes, which the PCB also shows (confirmed for COLOR RAM CHECK). Some differ by only a few color levels; check the shadow rounding against MAME's palette shadow table.
+6. **Video:** sync positions are guesses (HS 416–447, VS lines 244–246). Centering looks right on Aaron's display. If HS_START changes, recompute the CRT Adjust table (formula in `rtl/s3_crt_adjust.sv`) and run `scripts/crt_test.sh`.
+7. **CPU cache miss cost:** about 1.6% slower during the boot ROM checksum. Gameplay felt right to Aaron.
+8. **Unknowns that need the PCB** (logic analyzer about $15–30, EPROM programmer about $50–70): real blitter speed and arbitration, frame buffering, refresh rate.
+9. **Release:**
+   - README with screenshots and install steps
+   - dated `.rbf` in `releases/`
+   - make the repo public (Settings → General → Change visibility)
+   - tag `v1.0.0`
 
 ---
 
@@ -395,6 +454,12 @@ What we noticed along the way: facts, not rules. The retrospective and playbook 
 - Quartus can't run in the sandbox, so synthesis results (fit, timing, block RAM) depend on Aaron's PC. That splits every hardware iteration between two machines.
 - The first Quartus build came very late (after every subsystem was finished) and failed on block RAM, which the handoff had already flagged as the biggest fit risk. The Quartus error only says "more than 553" without a breakdown; the per-memory numbers are in the Fitter report (Resource Section).
 - The linked computer for file access was the Mac; Quartus runs on the Windows laptop, so its reports weren't reachable from the session.
+
+**About hardware testing**
+- Phone videos of the PCB and the MiSTer at the same moment were the most useful hardware data. One 10-second clip each settled the COLOR RAM stripes question and exposed the "A" junk bug, by comparing frames extracted with ffmpeg.
+- MAME isn't raster-accurate: it applies the palette once per frame, so mid-frame palette effects that the real PCB shows look different in MAME. "Differs from MAME" isn't automatically a bug; the PCB decides.
+- The game's own power-on self-test is a free timing check: the PCB showed the same check order and the same seconds between checks as the core.
+- Aaron, who has played the game a lot, judged gameplay feel immediately. Expert play testing is cheap and catches what simulation can't.
 
 **About working together**
 - Short status messages mattered. Aaron asked "do you need anything?" during long silent runs.
@@ -518,3 +583,8 @@ What we noticed along the way: facts, not rules. The retrospective and playbook 
 - Kyle's cores (workflow, CRT Adjust glue and bench): github.com/kyledlester, especially Nostradamus_Magical_Cat_Adventure_MiSTer
 - Musashi (reference model and disassembler only): github.com/kstenerud/Musashi @313ebf1
 - Hardware background: nicole.express, "The other type of mahjong" (the 1988 Shanghai hardware is a different design: V30 + HD63484)
+- For the next games:
+  - jt12 (YM2612/YM3438): github.com/jotego/jt12 @efa4068
+  - tv80 (Verilog Z80): github.com/hutch31/tv80 @66a131c
+  - T80 (VHDL Z80): github.com/MiSTer-devel/Arcade-Galaga_MiSTer `rtl/cpu/T80se.vhd` @7f89f57
+- Raki's CV1000 core (the pause-on-OSD idea; its public repo has only the simulation): github.com/ika-musume/ikacore_CV1k

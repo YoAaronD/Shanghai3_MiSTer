@@ -37,6 +37,13 @@ module shangha3_top (
     output logic [7:0]  ddr_be,
     output logic        ddr_we,
 
+    // second DDR3 master: the framework's screen_rotate (HDMI rotation),
+    // single-beat write pulses, shared through shangha3_ddr_arb
+    input  logic        rot_we,
+    input  logic [28:0] rot_addr,
+    input  logic [63:0] rot_din,
+    input  logic [7:0]  rot_be,
+
     // audio
     output logic signed [15:0] snd,
 
@@ -70,6 +77,23 @@ module shangha3_top (
     end
 
     // ------------------------------------------------------------------
+    // DDR3: display frame buffer (board) + screen_rotate share one port
+    // ------------------------------------------------------------------
+    logic        v_busy, v_dout_ready, v_rd, v_we;
+    logic [7:0]  v_burstcnt, v_be;
+    logic [28:0] v_addr;
+    logic [63:0] v_dout, v_din;
+
+    shangha3_ddr_arb u_ddr_arb (
+        .clk, .reset(sdram_init),
+        .a_busy(v_busy), .a_burstcnt(v_burstcnt), .a_addr(v_addr), .a_dout(v_dout),
+        .a_dout_ready(v_dout_ready), .a_rd(v_rd), .a_din(v_din), .a_be(v_be), .a_we(v_we),
+        .b_we(rot_we), .b_addr(rot_addr), .b_din(rot_din), .b_be(rot_be),
+        .ddr_busy, .ddr_burstcnt, .ddr_addr, .ddr_dout, .ddr_dout_ready,
+        .ddr_rd, .ddr_din, .ddr_be, .ddr_we
+    );
+
+    // ------------------------------------------------------------------
     // Board
     // ------------------------------------------------------------------
     logic [18:1] prog_addr;
@@ -83,13 +107,14 @@ module shangha3_top (
     logic        oki_rom_ok;
 
     shangha3_board u_board (
-        .clk, .reset(board_reset), .pause,
+        .clk, .reset(board_reset), .vid_reset(sdram_init), .pause,
         .prog_addr, .prog_cs, .prog_data, .prog_ok,
         .in_inputs, .in_system, .dsw1, .dsw2,
         .ce_pix, .hsync, .vsync, .hblank, .vblank, .vblank_next, .red, .green, .blue,
         .gfx_req, .gfx_addr, .gfx_ack, .gfx_data,
-        .ddr_busy, .ddr_burstcnt, .ddr_addr, .ddr_dout, .ddr_dout_ready,
-        .ddr_rd, .ddr_din, .ddr_be, .ddr_we,
+        .ddr_busy(v_busy), .ddr_burstcnt(v_burstcnt), .ddr_addr(v_addr),
+        .ddr_dout(v_dout), .ddr_dout_ready(v_dout_ready),
+        .ddr_rd(v_rd), .ddr_din(v_din), .ddr_be(v_be), .ddr_we(v_we),
         .psg_snd(), .oki_snd(), .snd,
         .oki_rom_addr, .oki_rom_data, .oki_rom_ok,
         .dbg_blit_go(), .dbg_irq_ack(), .dbg_gfxlist(), .dbg_flip(), .dbg_coinctrl(),

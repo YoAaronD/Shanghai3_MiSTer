@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <deque>
+#include <unordered_map>
 #include <vector>
 
 struct DdrModel {
@@ -25,12 +26,27 @@ struct DdrModel {
 
     uint32_t rnd() { rng = rng * 1103515245u + 12345u; return rng >> 8; }
 
+    // other masters (screen_rotate at 0x24000000) land in a sparse map
+    static constexpr uint32_t ROT_BASE = 0x04800000, ROT_SIZE = 0x00300000;   // 3 x 8 MB, in words
+    std::unordered_map<uint32_t, uint64_t> rot;
+    long rot_writes = 0;
+
     uint32_t index(uint32_t a) {
         if (a < BASE || a - BASE >= mem.size()) {
             if (errors++ < 5) printf("DDR: access outside the frame buffer area: %07X\n", a);
             return 0;
         }
         return a - BASE;
+    }
+    static uint64_t merge(uint64_t old, uint64_t d, uint8_t be) {
+        for (int i = 0; i < 8; i++)
+            if (be >> i & 1) old = (old & ~(0xffull << (8 * i))) | (d & (0xffull << (8 * i)));
+        return old;
+    }
+    void write_word(uint32_t a, uint64_t d, uint8_t be) {
+        if (a >= ROT_BASE && a - ROT_BASE < ROT_SIZE) { rot[a] = merge(rot[a], d, be); rot_writes++; return; }
+        uint64_t& w = mem[index(a)];
+        w = merge(w, d, be);
     }
 
     template <class T> void step(T* t) {
@@ -45,8 +61,9 @@ struct DdrModel {
 
         if (!busy && t->ddr_we) {
             if (w_left == 0) { w_addr = t->ddr_addr; w_left = t->ddr_burstcnt; }
-            mem[index(w_addr)] = t->ddr_din;
-            w_addr++; w_left--; words_written++;
+            write_word(w_addr, t->ddr_din, t->ddr_be);
+            if (!(w_addr >= ROT_BASE && w_addr - ROT_BASE < ROT_SIZE)) words_written++;
+            w_addr++; w_left--;
         }
         if (!busy && t->ddr_rd) {
             uint64_t due = now + (stress ? 10 + rnd() % 40 : 10);
