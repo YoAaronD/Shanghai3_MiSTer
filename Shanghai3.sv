@@ -53,6 +53,7 @@ localparam CONF_STR = {
 	"DIP;",
 	"-;",
 	"O[6],Service Mode,Off,On;",
+	"O[7],Pause when OSD is open,On,Off;",
 	"-;",
 	"T[0],Reset;",
 	"R[0],Reset and close OSD;",
@@ -144,6 +145,7 @@ shangha3_top core
 	.clk(clk_sys),
 	.reset(reset),
 	.sdram_init(~pll_locked),
+	.pause(OSD_STATUS & ~status[7]),   // freeze the game while the menu is open (option, default On)
 
 	.ioctl_download(ioctl_download),
 	.ioctl_index(ioctl_index),

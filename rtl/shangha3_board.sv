@@ -20,6 +20,7 @@
 module shangha3_board (
     input  logic        clk,          // 96 MHz
     input  logic        reset,
+    input  logic        pause,        // freeze CPU and sound (OSD open); video keeps running
 
     // program ROM (512 KB, 16-bit, big-endian words)
     output logic [18:1] prog_addr,
@@ -99,6 +100,15 @@ module shangha3_board (
     logic [5:0] psg_div;
     logic       ce_psg;
 
+    // pause: the CPU and sound clock enables stop (the CPU halts mid-cycle
+    // and resumes exactly where it was); video timing, the frame-buffer copy
+    // and the blitter keep running, so the screen holds the last picture.
+    logic pause_s1, pause_q;
+    always_ff @(posedge clk) begin
+        pause_s1 <= pause;                // from the menu: synchronise
+        pause_q  <= pause_s1;
+    end
+
     always_ff @(posedge clk) begin
         if (reset) begin
             cpu_div   <= '0;
@@ -106,17 +116,19 @@ module shangha3_board (
             pix_div   <= '0;
             psg_div   <= '0;
         end else begin
-            cpu_div <= (cpu_div == 2'd2) ? 2'd0 : cpu_div + 2'd1;
-            if (cpu_div == 2'd2) cpu_phase <= ~cpu_phase;
+            if (!pause_q) begin
+                cpu_div <= (cpu_div == 2'd2) ? 2'd0 : cpu_div + 2'd1;
+                if (cpu_div == 2'd2) cpu_phase <= ~cpu_phase;
+                psg_div <= psg_div + 6'd1;
+            end
             pix_div <= (pix_div == 4'd11) ? 4'd0 : pix_div + 4'd1;
-            psg_div <= psg_div + 6'd1;
         end
     end
 
-    assign en_phi1 = (cpu_div == 2'd2) && !cpu_phase;
-    assign en_phi2 = (cpu_div == 2'd2) &&  cpu_phase;
+    assign en_phi1 = (cpu_div == 2'd2) && !cpu_phase && !pause_q;
+    assign en_phi2 = (cpu_div == 2'd2) &&  cpu_phase && !pause_q;
     assign ce_pix  = (pix_div == 4'd11);
-    assign ce_psg  = (psg_div == 6'd63);
+    assign ce_psg  = (psg_div == 6'd63) && !pause_q;
 
     // ------------------------------------------------------------------
     // Video timing
@@ -403,6 +415,8 @@ module shangha3_board (
         if (reset) begin
             oki_acc <= '0;
             ce_oki  <= 1'b0;
+        end else if (pause_q) begin
+            ce_oki  <= 1'b0;
         end else if (oki_acc + 10'd11 >= 10'd1000) begin
             oki_acc <= oki_acc + 10'd11 - 10'd1000;
             ce_oki  <= 1'b1;
@@ -446,7 +460,8 @@ module shangha3_board (
     always_ff @(posedge clk) begin
         logic signed [17:0] mix;
         mix = 18'(oki_snd) * 18'sd2 + 18'(ay_ac) * 18'sd12;
-        if      (mix >  18'sd32767) snd <= 16'sd32767;
+        if      (pause_q)           snd <= 16'sd0;          // silent while paused
+        else if (mix >  18'sd32767) snd <= 16'sd32767;
         else if (mix < -18'sd32768) snd <= -16'sd32768;
         else                        snd <= 16'(mix);
     end

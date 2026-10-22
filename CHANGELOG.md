@@ -13,6 +13,14 @@ Each entry below gives both: version, then date stamp.
 
 ---
 
+## v0.1.3 — 20261021
+
+**Added**
+- **Pause when the menu is open.** Opening the MiSTer OSD freezes the game and silences it; closing the OSD resumes exactly where it stopped. It can be turned off in the menu ("Pause when OSD is open: On/Off"; default On).
+  - Inspired by Raki's CV1000 core.
+  - Tested in simulation: a 60-frame pause, after which the game continues frame-for-frame identical to an unpaused run.
+- Board testbench option `--pause FROM LEN`.
+
 ## v0.1.2 — 20261021
 
 First fix from real-hardware testing.
@@ -23,6 +31,9 @@ First fix from real-hardware testing.
   - Fix: while a run is queued, CPU writes to the list and tilemap areas wait until that run has copied them, so every run sees RAM as it was at its own start, as MAME's instant blitter does. Up to 3 starts are queued.
   - The CPU pauses only in this double-start case, which is rare (mostly at boot).
   - Over 1,700 simulated frames, only the 4 affected frames changed. They now show "INTTURUPT WAIT", as MAME and the PCB do.
+
+**Tested on hardware**
+- Two full games played on the MiSTer: gameplay feels right, all controls and Service Mode work.
 
 **Confirmed on the PCB**
 - The green stripes during "COLOR RAM CHECK" are real. The PCB shows them too, because palette changes take effect mid-frame. MAME shows solid flashes instead because it applies the palette once per frame. The core matches the PCB here, and the remaining frame differences from MAME during screen transitions are likely the same effect.

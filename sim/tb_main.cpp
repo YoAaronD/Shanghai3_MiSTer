@@ -25,6 +25,7 @@ int main(int argc, char** argv) {
     bool log_rom = true;     // --no-rom-log: skip program ROM reads (opcode fetches) in the trace
     int log_from = 0;        // --log-from N: only trace bus cycles from frame N on
     std::string gfx_path, frames_out, oki_path, wav_path;
+    int pause_from = -1, pause_len = 0;   // --pause FROM LEN: hold the pause input for LEN frames from frame FROM
     int every = 30;
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--prog") && i + 1 < argc) prog_path = argv[++i];
@@ -38,6 +39,7 @@ int main(int argc, char** argv) {
         else if (!strcmp(argv[i], "--oki") && i + 1 < argc) oki_path = argv[++i];
         else if (!strcmp(argv[i], "--wav") && i + 1 < argc) wav_path = argv[++i];
         else if (!strcmp(argv[i], "--frames-out") && i + 1 < argc) frames_out = argv[++i];
+        else if (!strcmp(argv[i], "--pause") && i + 2 < argc) { pause_from = atoi(argv[++i]); pause_len = atoi(argv[++i]); }
         else if (!strcmp(argv[i], "--every") && i + 1 < argc) every = atoi(argv[++i]);
     }
     if (prog_path.empty()) { fprintf(stderr, "need --prog <file>\n"); return 1; }
@@ -180,6 +182,8 @@ int main(int argc, char** argv) {
 
         if (top->vblank && !prev_vblank) {
             frame++;
+            if (frame == pause_from) top->pause = 1;
+            if (frame == pause_from + pause_len) top->pause = 0;
             fprintf(tr, "%10.2f EV FRAME %d near_pc=%06X blit_busy=%.1f%% cpu_stall=%.1f%%\n", us, frame,
                     last_rom_addr, 100.0 * busy_cycles / (512 * 263 * 12), 100.0 * stall_cycles / (512 * 263 * 12));
             stall_cycles = busy_cycles = 0;

@@ -5,6 +5,7 @@ module shangha3_top (
     input  logic        clk,            // 96 MHz
     input  logic        reset,          // from MiSTer (menu reset, buttons)
     input  logic        sdram_init,     // hold high until the PLL is locked
+    input  logic        pause,          // freeze the game (e.g. while the OSD is open)
 
     // ROM download from the MiSTer menu / MRA
     input  logic        ioctl_download,
@@ -82,7 +83,7 @@ module shangha3_top (
     logic        oki_rom_ok;
 
     shangha3_board u_board (
-        .clk, .reset(board_reset),
+        .clk, .reset(board_reset), .pause,
         .prog_addr, .prog_cs, .prog_data, .prog_ok,
         .in_inputs, .in_system, .dsw1, .dsw2,
         .ce_pix, .hsync, .vsync, .hblank, .vblank, .vblank_next, .red, .green, .blue,

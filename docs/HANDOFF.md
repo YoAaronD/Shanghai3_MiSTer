@@ -87,6 +87,11 @@
     - The boot checks match the PCB in order and timing (ROM 1 → ROM 2 about 2.5 s → VIEW WORK about 4.7 s → COLOR RAM about 1.75 s).
     - The green stripes during COLOR RAM CHECK appear on the PCB too: palette changes take effect mid-frame on real hardware. MAME shows whole-frame flashes instead, so here the core is more accurate than MAME.
     - Found and fixed the "A" junk screen (v0.1.2, queued blitter start; see §8).
+19. **First play test by Aaron (20261021),** who knows the game well:
+    - two full games, about three levels each; "feels right"
+    - all controls work, and the core menu's Service Mode works
+    - the one-frame difference vs. MAME isn't noticeable in play
+    - still to check: sound balance against the PCB, picture position on a CRT
 
 ---
 
@@ -209,7 +214,8 @@ All logic runs on one **96 MHz** clock (2 × 48 MHz) with clock enables.
 - **OKI phrase table:** the first 1 KB of the sample ROM is copied into block RAM during download. jt6295 drops a command that arrives mid-lookup, so table reads must be fast. Sample data stays in SDRAM.
 - **Audio:** YM2149 high-passed, mixed as `snd = oki × 2 + ay × 12`, saturated to 16-bit signed. The levels are a guess.
 - **Inputs:** MiSTer joystick bits 0–3 directions, 4 = B1, 5 = B2, 6 = Start, 7 = Coin, 8 = Service. OSD "Service Mode" is status[6].
-- **OSD status bits used:** 0 reset; 3–5 scandoubler fx; 6 service; 96 CRT Adjust on; 101–104 H-Position; 105–108 V-Shift; 112–116 H-Size; 121–122 aspect.
+- **Pause when OSD is open** (status[7], 0 = On by default): `OSD_STATUS & ~status[7]` freezes the CPU clock enables (mid-cycle, resuming exactly), the YM2149 and OKI enables, and mutes the output. Video timing, the frame-buffer copy and the blitter keep running, so the screen holds the last picture. Requested by Aaron after seeing it in Raki's CV1000 core (that repo publishes only its simulation, so this uses the standard MiSTer `OSD_STATUS` signal). Verified: `sim.sh game ... --pause 900 60` gives 60 frozen frames and then exactly the normal run shifted by 60 frames.
+- **OSD status bits used:** 0 reset; 3–5 scandoubler fx; 6 service; 7 pause-when-OSD-open (0 = on); 96 CRT Adjust on; 101–104 H-Position; 105–108 V-Shift; 112–116 H-Size; 121–122 aspect.
 - **Estimated block RAM:**
 
 | Item | Size |
