@@ -13,6 +13,14 @@ Each entry below gives both: version, then date stamp.
 
 ---
 
+## v0.1.5 — 20261022
+
+**Changed**
+- **Removed the core's own loading bar.** With sync kept during the download (v0.1.4), the MiSTer menu's "Loading / Sending ROM" progress box is visible, and the core's bar appeared as a second one behind it (Aaron's CRT video).
+
+**Confirmed on hardware**
+- The CRT stays in sync while the ROMs load.
+
 ## v0.1.4 — 20261022
 
 Fixes from Aaron's hardware testing, plus HDMI rotation.
@@ -23,11 +31,12 @@ Fixes from Aaron's hardware testing, plus HDMI rotation.
 - **Draw buffer cleared on every board reset,** as MAME starts with an empty bitmap: no leftover picture from before a reset or a reload. The sweep takes 0.9 ms; the blitter waits for it.
 
 **Added**
-- **Loading bar** while the ROMs download (256 × 16 pixels, centred).
+- **Loading bar** while the ROMs download (256 × 16 pixels, centred). Removed again in v0.1.5.
 - **Orientation: Horizontal / Vertical CW / Vertical CCW** (OSD). For vertical (TATE) monitors on HDMI, using the MiSTer framework's `screen_rotate` (as in Kyle's cores). The 15 kHz analog output is never rotated.
   - `screen_rotate` needs the DDR3 port, which the display buffer already uses. The new `rtl/shangha3_ddr_arb.sv` shares it: rotation writes are queued in a 64-entry FIFO and sent between the display buffer's bursts.
   - Tested in simulation with a second master writing every visible pixel (37 M writes): all arrived, none dropped, and the game's frames were unchanged.
   - `MISTER_FB` is now enabled in the qsf.
+- **Build (Quartus 17.0.2):** 520 / 553 M10K blocks (94%); 96 MHz setup slack +0.366 ns.
 
 **Checked**
 - **Flip Screen DIP:** in simulation the core flips the picture exactly like MAME. The game reads the switch once, at the end of its power-on self-test (about 12 s), so a change only shows after a reset and the self-test.

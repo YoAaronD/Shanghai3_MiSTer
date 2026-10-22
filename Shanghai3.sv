@@ -225,28 +225,11 @@ shangha3_top core
 //////////////////////////   VIDEO   /////////////////////////////
 // 384 x 224 visible, 8 MHz pixel clock, 512 x 263 total (59.41 Hz)
 
-// Loading bar. During a ROM download the board is held in reset, but the
-// video timing keeps running (sync never stops, so CRTs stay locked) and the
-// picture is black; a progress bar is drawn on top. 256 x 16 pixels, centred.
-reg  [8:0] lx = 9'd0, ly = 9'd0;
-reg        lhbl_d = 1'b0;
-always @(posedge clk_sys) if (ce_pix) begin
-	lhbl_d <= hbl;
-	lx <= hbl ? 9'd0 : lx + 9'd1;                       // 0..383 on visible pixels
-	if (hbl && !lhbl_d) ly <= vbl ? 9'd0 : ly + 9'd1;   // 0..223 on visible lines
-end
-reg  [28:0] dl_prod;
-reg   [8:0] dl_fill;                                     // 0..256 pixels done
-always @(posedge clk_sys) begin
-	dl_prod <= ioctl_addr[21:0] * 7'd93;                 // 93 / 2^20 ~= 256 / 0x2C0000
-	dl_fill <= (dl_prod[28:20] > 9'd256) ? 9'd256 : dl_prod[28:20];
-end
-wire loading = ioctl_download && (ioctl_index == 16'd0);
-wire in_box  = (lx >= 9'd63) && (lx <= 9'd320) && (ly >= 9'd103) && (ly <= 9'd120);
-wire on_edge = (lx == 9'd63) || (lx == 9'd320) || (ly == 9'd103) || (ly == 9'd120);
-wire filled  = (lx >= 9'd64) && ((lx - 9'd64) < dl_fill);
-wire [23:0] load_rgb = !in_box ? 24'h000000 : on_edge ? 24'hC0C0C0 : filled ? 24'hF0F0F0 : 24'h202020;
-wire [23:0] core_rgb = loading ? load_rgb : {r, g, b};
+// During a ROM download the board is held in reset, but the video timing
+// keeps running (sync never stops, so CRTs stay locked) and the picture is
+// black. The MiSTer menu draws its own "Loading / Sending ROM" progress box on
+// top, so the core draws none (an earlier version did, and showed two bars).
+wire [23:0] core_rgb = {r, g, b};
 
 // CRT Adjust (analog CRT geometry: H-Size, H-Position, V-Shift). Off = exact bypass.
 reg  vs_d = 1'b0;

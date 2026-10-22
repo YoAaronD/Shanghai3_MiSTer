@@ -257,7 +257,6 @@ Line numbers are for v0.1.3.
 
 - Plumb `game_id`.
 - Inputs: add Button 3 (joystick bit 6 is Start now; reorder `J1` to `Button 1,Button 2,Button 3,Start,Coin,Service` and remap `in_inputs`/`in_system`, keeping shangha3j unchanged). Keep the v0.1.4 SYSTEM bit order (coin1, coin2, service1, start1, start2, service switch) and test every button on hardware.
-- The loading bar scales `ioctl_addr` for a 0x2C0000-byte stream; change it to the uniform layout's 0x510000.
 - `CONF_STR`: core name (if renamed); "Pause when OSD is open" stays.
 - Audio: the new sound section produces 16-bit signed output; mix as today.
 
@@ -319,7 +318,17 @@ Verification:
 
 ## 6. Block RAM budget (M10K, 553 on the DE10-Nano)
 
-The v0.1.3 build fits, but the exact M10K count wasn't recorded. **First action of the new work:** have Aaron read Compilation Report → Fitter → Resource Section → Resource Usage Summary → "M10K blocks" for v0.1.3, and note it in `docs/HANDOFF.md`.
+**Measured (v0.1.4, with `MISTER_FB` for rotation): 520 of 553 M10K blocks (94%), only 33 free.** Block-memory bits: 4.17 Mbit used of 5.66 (74%); the rest is lost to block granularity. Timing: +0.366 ns setup slack at 96 MHz (v0.1.1 had +1.118 before rotation).
+
+This is far tighter than the estimate below suggested. **Before adding anything for the new games,** get the per-entity breakdown: Compilation Report → Fitter → Resource Section → **Resource Utilization by Entity**, M10K column. It shows whether the framework (ascal, `screen_rotate`, scandoubler/HQ2x) or the core is the big user. Likely levers, biggest first:
+
+1. **The Z80 ROM must not go in BRAM:** serve it from SDRAM through `ch3` (idle after download) with a small cache or Z80 `WAIT_n`.
+2. Check whether the 86,016 × 12-bit draw buffer was rounded up by Quartus (to 128K deep or ×16 wide). If so, split it into explicit 64K + 16K + 4K pieces or pack it as 2K × 4 blocks.
+3. `cmdbuf` 2048 → 1024 commands (about 18 M10K).
+4. `MISTER_DISABLE_ADAPTIVE` in the qsf (scaler line buffers).
+5. HQ2x is in `arcade_video`'s scandoubler path; check its cost in the breakdown.
+
+The estimate below (written before the measurement) is kept for reference.
 
 Estimate for the core alone today: about 270 (draw buffer about 130, work RAM 64, command snapshot 36, tilemap snapshot 16, palette 4, cache 5, CRT Adjust, line buffer, OKI table and others about 15). The MiSTer framework adds roughly 100–150.
 

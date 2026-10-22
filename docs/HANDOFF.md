@@ -69,7 +69,7 @@
 | CRT Adjust on hardware | Untested | Picture position is correct on Aaron's display |
 
 **Next actions:**
-1. **Record the v0.1.3 M10K count:** Compilation Report → Fitter → Resource Section → Resource Usage Summary → "M10K blocks". It decides where the Z80 ROM goes (`docs/SAME_BOARD_GAMES.md` §6).
+1. **Block RAM is nearly full:** v0.1.4 uses 520 of 553 M10K blocks (94%), with +0.366 ns setup slack. Get the per-entity M10K breakdown (Fitter → Resource Utilization by Entity) before adding the new games' memories (`docs/SAME_BOARD_GAMES.md` §6).
 2. **Same-board games:** follow `docs/SAME_BOARD_GAMES.md` §7, milestones 0–7.
 3. **Shanghai III v1.0.0, in parallel:**
    - sound balance from Aaron's PCB video (AirDrop it to the Mac's linked folder; it's too large for the phone app)
@@ -214,7 +214,7 @@ All logic runs on one **96 MHz** clock (2 × 48 MHz) with clock enables.
 | `rtl/shangha3_ddr_arb.sv` | Shares the DDRAM port between the display buffer (bursts) and the framework's `screen_rotate` (single-beat writes, queued in a 64-entry FIFO, sent between bursts) |
 | `rtl/vendor/crt_adjust.sv` | rmonic79's CRT Adjust (unmodified, @c682de9) |
 | `rtl/s3_crt_adjust.sv` | CRT Adjust glue adapted from Kyle's Nostradamus core; H-Position limit table for this raster |
-| `Shanghai3.sv` | MiSTer `emu` module: hps_io menu, PLL (96 MHz), DIPs (ioctl index 254), joystick mapping, loading bar, CRT Adjust, arcade_video, `screen_rotate` (Orientation), audio |
+| `Shanghai3.sv` | MiSTer `emu` module: hps_io menu, PLL (96 MHz), DIPs (ioctl index 254), joystick mapping, CRT Adjust, arcade_video, `screen_rotate` (Orientation), audio |
 | `rtl/pll*`, `sys/` | From MiSTer-devel/Template_MiSTer @5dda373. PLL output hand-edited from 20 to 96 MHz. |
 | `Shanghai3.qpf/.qsf/.sdc`, `files.qip` | Quartus project. The SDC sets a 3-cycle multicycle path for fx68k-internal paths. |
 | `releases/Shanghai III (Japan).mra` | ROM stream (4 files in order, no interleave) + DIP definitions |
@@ -248,7 +248,7 @@ All logic runs on one **96 MHz** clock (2 × 48 MHz) with clock enables.
 - **Inputs:** MiSTer joystick bits 0–3 directions, 4 = B1, 5 = B2, 6 = Start, 7 = Coin, 8 = Service. OSD "Service Mode" is status[6].
 - **Pause when OSD is open** (status[7], 0 = On by default): `OSD_STATUS & ~status[7]` freezes the CPU clock enables (mid-cycle, resuming exactly), the YM2149 and OKI enables, and mutes the output. Video timing, the frame-buffer copy and the blitter keep running, so the screen holds the last picture. Requested by Aaron after seeing it in Raki's CV1000 core (that repo publishes only its simulation, so this uses the standard MiSTer `OSD_STATUS` signal). Verified: `sim.sh game ... --pause 900 60` gives 60 frozen frames and then exactly the normal run shifted by 60 frames.
 - **Resets (v0.1.4):** `vid_reset` (= `sdram_init`, i.e. PLL not locked) is the only reset of the pixel clock, video timing, display path and DDR3 master, so sync never stops. The board reset (`reset || ioctl_download || sdram_init || !mem_ready`) resets the CPU, blitter, sound and I/O. In the video module it only acts as `clear`: black screen, a 0.9 ms sweep that zeroes the draw buffer (blitter held), and the picture returns with the first complete copy made after the sweep. Never reset the DDR3 master mid-burst; that's why it isn't on the board reset.
-- **Loading bar:** drawn in `Shanghai3.sv` while `ioctl_download && ioctl_index == 0`, from `ioctl_addr` (scaled by 93/2^20 to 256 pixels for the 0x2C0000-byte stream). Update the scale if the stream length changes (e.g. the uniform layout in `docs/SAME_BOARD_GAMES.md` §3.1).
+- **Loading progress:** the MiSTer menu draws its own progress box during ROM downloads, as long as the core keeps sync (it does since v0.1.4). Don't draw a second bar in the core; one was tried and showed up twice on Aaron's CRT.
 - **Orientation (v0.1.4):** status[9:8] = Horizontal / Vertical CW / Vertical CCW. `screen_rotate` (in `sys/arcade_video.v`) writes the rotated picture to DDR3 at 0x24000000 and switches the HDMI scaler to framebuffer mode. Requires `MISTER_FB` in the qsf. Aspect ratio swaps to 3:4 when rotated. `screen_rotate` ignores `DDRAM_BUSY`, so the arbiter queues its writes.
 - **Inputs (fixed in v0.1.4):** SYSTEM = {1, service-mode switch (OSD), start2, start1, service1, coin2, coin1}, with joystick 6 = Start, 7 = Coin, 8 = Service (service1 is a service credit). Before v0.1.4 Start and Service were in the wrong bits.
 - **OSD status bits used:** 0 reset; 3–5 scandoubler fx; 6 service; 7 pause-when-OSD-open (0 = on); 8–9 orientation; 96 CRT Adjust on; 101–104 H-Position; 105–108 V-Shift; 112–116 H-Size; 121–122 aspect.
@@ -406,7 +406,7 @@ All logic runs on one **96 MHz** clock (2 × 48 MHz) with clock enables.
    - Re-measure after any change with `scripts/mame_latency.py`.
 4. **CRT Adjust on hardware:** untested on a CRT. Picture position is correct on Aaron's display.
    - **Also pending on hardware (v0.1.4):**
-     - CRT stays in sync while loading, and the bar fills
+     - CRT stays in sync while loading (MiSTer progress box visible) — confirmed on Aaron's CRT 20261022
      - Start / Coin / Service buttons
      - Orientation CW/CCW on HDMI
      - Flip Screen after a reset (it works in simulation)
