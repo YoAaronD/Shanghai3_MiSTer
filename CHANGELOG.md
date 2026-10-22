@@ -13,9 +13,23 @@ Each entry below gives both: version, then date stamp.
 
 ---
 
+## v0.1.2 — 20261021
+
+First fix from real-hardware testing.
+
+**Fixed**
+- Boot: after "ADPCM CHECK OK." the screen filled with rows of the letter "A" for a few frames, where the PCB shows "--- INTTURUPT WAIT ---".
+  - Cause: the game starts the blitter twice, 8 µs apart, then reuses that RAM. The core queued the second run, which then read RAM the game had already changed.
+  - Fix: while a run is queued, CPU writes to the list and tilemap areas wait until that run has copied them, so every run sees RAM as it was at its own start, as MAME's instant blitter does. Up to 3 starts are queued.
+  - The CPU pauses only in this double-start case, which is rare (mostly at boot).
+  - Over 1,700 simulated frames, only the 4 affected frames changed. They now show "INTTURUPT WAIT", as MAME and the PCB do.
+
+**Confirmed on the PCB**
+- The green stripes during "COLOR RAM CHECK" are real. The PCB shows them too, because palette changes take effect mid-frame. MAME shows solid flashes instead because it applies the palette once per frame. The core matches the PCB here, and the remaining frame differences from MAME during screen transitions are likely the same effect.
+
 ## v0.1.1 — 20261021
 
-Timing fix after the first successful Quartus build. That build fit, but missed timing on the core's 96 MHz clock: worst slack −8.8 ns, total −500 ns.
+Timing fix after the first successful Quartus build. That build fit, but missed timing on the core's 96 MHz clock: worst slack −8.8 ns, total −500 ns. With this version the 96 MHz clock meets timing (+1.118 ns setup slack), and **the game runs on a real MiSTer** (first boot 20261021).
 
 **Fixed**
 - Video: the shadow darkening (×0.6) used a divider. It was the 200 worst failing paths, about 17 ns at a 10.4 ns clock. It is now a 32-entry lookup table with identical results.
@@ -43,7 +57,7 @@ First version expected to compile in Quartus. Not yet tested on a MiSTer.
 
 **Known issues**
 - Each blitter result appears **one frame later than in MAME** (confirmed against real MAME, 700 of 700 matched frames). To be fixed after hardware bring-up; see `docs/HANDOFF.md` §10.
-- 96 of 1,001 compared frames differ from MAME during title-screen transitions, some only by a few color levels. Not investigated yet.
+- 96 of 1,001 compared frames differ from MAME during title-screen transitions, some only by a few color levels. (v0.1.2: most likely mid-frame palette changes, which the PCB also shows.)
 - Never run on real hardware: SDRAM clock phase, DDR3 access, sync positions, centering and audio levels are untested.
 
 ## Before v0.1.0 (unversioned)

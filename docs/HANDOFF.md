@@ -82,6 +82,11 @@
     - **Confirmed: the core shows each blitter run's result one frame later than MAME** (700 of 700 matched animation frames, +1 in every case; see §10).
     - At that offset, 905 of 1,001 frames (frames 700–1700) are pixel-identical to MAME. The rest differ during title-screen transitions, some by only a few color levels. Not investigated yet (§10).
 16. **Steering files for future sessions:** `CLAUDE.md` (repo root, read automatically by Claude) and `docs/SAME_BOARD_GAMES.md` (plan for Hebereke no Popoon and Blocken).
+17. **v0.1.1: timing met, and the game runs on Aaron's MiSTer** (20261021). The timing fix (shadow lookup table, pipelined blitter multiplies) took the 96 MHz clock from −8.8 ns to +1.118 ns setup slack. Detailed hardware checks (sound, controls, centering, stability) are pending.
+18. **First hardware comparison (PCB video vs. MiSTer video):**
+    - The boot checks match the PCB in order and timing (ROM 1 → ROM 2 about 2.5 s → VIEW WORK about 4.7 s → COLOR RAM about 1.75 s).
+    - The green stripes during COLOR RAM CHECK appear on the PCB too: palette changes take effect mid-frame on real hardware. MAME shows whole-frame flashes instead, so here the core is more accurate than MAME.
+    - Found and fixed the "A" junk screen (v0.1.2, queued blitter start; see §8).
 
 ---
 
@@ -303,6 +308,7 @@ All logic runs on one **96 MHz** clock (2 × 48 MHz) with clock enables.
 | Verilator re-ran an in-block initializer in `sdram.sv` | Keep initialized declarations at module scope |
 | First Quartus fit: out of M10K (two 384 × 224 frame buffers plus the MiSTer framework) | Count M10K blocks, not bits, against the 553 available, and leave room for the framework; do an early Quartus build with the big memories in place |
 | First fitting build missed 96 MHz timing by 8.8 ns: a divide-by-10 (shadow colour) in one clock, plus unregistered multiplies in the blitter | Use no dividers and register around every multiplier; check TimeQuest's Setup Summary on every build. `output_files/timing_paths.txt` lists every failing endpoint |
+| On hardware: a screen of "A"s at boot instead of "INTTURUPT WAIT": a second blitter go arrived while the first run was drawing, was queued, and read RAM the CPU had changed since | A queued run must also hold CPU writes (instant-at-go semantics apply to every go, not just the first). Compare boot screens frame by frame against a PCB video |
 
 ---
 
@@ -334,7 +340,7 @@ All logic runs on one **96 MHz** clock (2 × 48 MHz) with clock enables.
    - Trade-off: runs that are still drawing when the screen starts (about 2% in attract mode, mostly transitions) need a fallback: show that frame late (as now), or tear for one frame.
    - The real PCB's behavior is unknown. A high-frame-rate video of the PCB vs. the core (button press to screen change) would settle which is right.
    - Re-measure after any change with `scripts/mame_latency.py`.
-3. **Frames that differ from MAME** at the 1-frame offset: 96 of 1,001, during title transitions; some differ only by a few color levels (shadow or fade rounding?). Compare against MAME frame by frame; MAME's own shadow uses the palette's shadow table.
+3. **Frames that differ from MAME** at the 1-frame offset: about 90 of 1,001, during title transitions. Most likely mid-frame palette changes, which the PCB also shows (confirmed for the COLOR RAM CHECK). Some differ by only a few color levels; check the shadow rounding against MAME's palette shadow table.
 4. **DDR3 display buffer on real hardware:** if the picture is black, garbled or rolling while the game runs (sound and controls fine), suspect the DDR3 path first (address 0x30000000, bursts of 8, `DDRAM_CLK`).
 5. **SDRAM on real hardware:** CAS latency 3, with SDRAM_CLK from an inverted DDR output (as in M92). Corrupt graphics or a crash means suspecting clock phase.
 6. **Audio mix levels:** tune by ear against MAME or the PCB.

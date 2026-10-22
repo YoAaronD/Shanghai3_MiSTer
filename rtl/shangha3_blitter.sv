@@ -113,7 +113,17 @@ module shangha3_blitter (
     } state_t;
 
     state_t state, ret_state;
-    logic   start_pending;
+    // Starts that arrive while a run is in progress are queued (up to 3).
+    // MAME's blitter draws instantly at "go", so a queued run must see RAM
+    // exactly as it was at its go: while a run is queued, the board holds
+    // every CPU write to the list and tilemap areas until that run's own
+    // snapshot has copied them (scan_from / tm_from below). Found on real
+    // hardware: at boot the game issues two gos ~8 us apart and then
+    // reuses that RAM; without the hold the second run drew a screen of
+    // stale tiles instead of "INTTURUPT WAIT".
+    logic [1:0]  pend_cnt;
+    logic [15:0] pend_list;            // list address of the oldest queued run
+    wire         start_pending = (pend_cnt != 2'd0);
 
     // ------------------------------------------------------------------
     // Command fields
@@ -207,9 +217,12 @@ module shangha3_blitter (
         if (state == S_TM_COPY && tc_p2v) tmbuf[tc_p2a] <= ram_q;
 
     assign busy = (state != S_IDLE) || start_pending;
-    assign scan_from = (state == S_IDLE) ? {gfxlist, 3'b000} : (phase1 ? offs : 19'h8000);
+    wire [18:0] run_scan_from = (state == S_IDLE) ? {gfxlist, 3'b000} : (phase1 ? offs : 19'h8000);
+    wire [18:0] pend_from     = {pend_list, 3'b000};
+    assign scan_from = (start_pending && pend_from < run_scan_from) ? pend_from : run_scan_from;
     // tilemap RAM words not yet snapshotted: [tm_from, 0x2000)
     assign tm_from = (state == S_IDLE)    ? 14'h0000 :
+                     start_pending        ? 14'h0000 :      // queued run: whole tilemap pending
                      (state == S_TM_COPY) ? tc_issue :
                      phase1               ? 14'h0000 : 14'h2000;
 
@@ -279,14 +292,23 @@ module shangha3_blitter (
 
         if (reset) begin
             state         <= S_IDLE;
-            start_pending <= 1'b0;
+            pend_cnt      <= '0;
             gfx_req       <= 1'b0;
             cache_valid   <= 1'b0;
             pf_valid      <= 1'b0;
             phase1        <= 1'b0;
             ram_addr      <= '0;
         end else begin
-            if (start) start_pending <= 1'b1;
+            // queue of starts: +1 for a go, -1 when S_IDLE takes a queued one
+            begin
+                logic take_q;
+                take_q = (state == S_IDLE) && start_pending;
+                if (start && !(state == S_IDLE && !start_pending)) begin
+                    if (!start_pending || take_q) pend_list <= gfxlist;
+                    if (!take_q && pend_cnt != 2'd3) pend_cnt <= pend_cnt + 2'd1;
+                end else if (take_q)
+                    pend_cnt <= pend_cnt - 2'd1;
+            end
 
             // fetch unit: a row arrives -> prefetch buffer
             if (gfx_req && gfx_ack) begin
@@ -299,8 +321,7 @@ module shangha3_blitter (
             case (state)
             // --------------------------------------------------------------
             S_IDLE: if (start_pending || start) begin
-                start_pending <= 1'b0;
-                offs          <= {gfxlist, 3'b000};
+                offs          <= start_pending ? {pend_list, 3'b000} : {gfxlist, 3'b000};
                 cb_n          <= '0;
                 has_tm        <= 1'b0;
                 phase1        <= 1'b1;
