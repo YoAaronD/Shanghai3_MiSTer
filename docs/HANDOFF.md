@@ -15,12 +15,12 @@
   - Has no measuring tools beyond basic electrical ones.
   - Wants to build **several more arcade cores** after this one.
 - **Friend:** Kyle (github.com/kyledlester) has built several MiSTer arcade cores with AI assistance. His Nostradamus core was the model for this project's workflow and CRT Adjust glue.
-- **State (v0.1.6, 20261022):** Shanghai III (Japan) **runs on Aaron's MiSTer**.
+- **State (v0.1.7, 20261022):** Shanghai III (Japan) **runs on Aaron's MiSTer**.
   - It meets timing at 96 MHz.
   - Its boot checks match his real PCB on video.
   - He played two full games: "feels right"; all controls, Service Mode and pause-on-OSD work.
-  - v0.1.6 (20261022): sound balance measured against his PCB gameplay video and corrected (OKI about 9.5 dB louder relative to the YM2149; see §10 item 2 for the method). Aaron's listening check is pending.
-  - Remaining before v1.0.0: a listening check of v0.1.6, a CRT Adjust check, and the optional one-frame timing decision (§10).
+  - v0.1.6 (20261022): sound balance measured against his PCB gameplay video and corrected (OKI about 9.5 dB louder relative to the YM2149; see §10 item 2 for the method). Aaron approved it on his CRT; v0.1.7 trims volume (−3 dB) and bass by ear.
+  - Remaining before v1.0.0: the empty MiSTer loading box (§10), release prep, and the optional one-frame timing decision (§10).
   - Next big step: the same-board games (`docs/SAME_BOARD_GAMES.md`).
 
 ---
@@ -125,6 +125,7 @@
     - `tools/mame/sound_log.lua` added for the sound section's golden reference
 22. **v0.1.4–v0.1.5: fixes from Aaron's hardware testing** (20261022): Start/Service wiring, CRT sync during loading, draw buffer cleared on reset, HDMI rotation (`screen_rotate` through a DDR3 arbiter), loading bar removed. See `CHANGELOG.md`.
 23. **v0.1.6: sound balance from the PCB** (20261022): fitted against Aaron's 1-minute PCB gameplay clip (§10 item 2). OKI raised about 9.5 dB relative to the YM2149, overall level up about 11 dB, YM2149 DC blocker 233 Hz → 15 Hz. The season/flower pair sound is OKI phrase 24 and is in the clip at 51.6 s.
+24. **v0.1.7 (20261022):** Aaron's CRT check of v0.1.6 passed (picture, sound, play, CRT Adjust). Volume −3 dB and bass corner 58 Hz by ear. Kyle confirmed his v0.1.4 issue list fixed. Open: the MiSTer loading box shows no text on Aaron's CRT (§10).
 
 ---
 
@@ -208,7 +209,7 @@ All logic runs on one **96 MHz** clock (2 × 48 MHz) with clock enables.
 | File | Role |
 |---|---|
 | `rtl/shangha3_board.sv` | The PCB: fx68k, address decode, work RAM (dual port), palette RAM (dual port), I/O, protection, IRQ, jt49, jt6295, CPU write arbitration against the blitter |
-| `rtl/shangha3_mixer.sv` | YM2149 + OKI mix: DC blocker (~15 Hz) and the levels measured against the PCB (v0.1.6: `oki*8 + ay*16`) |
+| `rtl/shangha3_mixer.sv` | YM2149 + OKI mix: DC blocker (~58 Hz) and the levels measured against the PCB (v0.1.6), then trimmed by ear (v0.1.7) |
 | `rtl/shangha3_blitter.sv` | GA9201 re-creation (two-phase, see below) |
 | `rtl/shangha3_video.sv` | Draw buffer (384 × 224 × 12 bit, BRAM), vblank copy to the display buffer in DDR3, line prefetch into a 2-line BRAM buffer, palette scan-out |
 | `rtl/shangha3_video_timing.sv` | Counters, blanking, placeholder syncs, `vblank_next` for CRT Adjust |
@@ -248,7 +249,7 @@ All logic runs on one **96 MHz** clock (2 × 48 MHz) with clock enables.
 - **SDRAM channels** (priority order): ch2 = CPU cache line, ch1 = OKI, ch3 = download, ch4 = blitter rows.
 - **CPU cache:** direct-mapped, 512 lines × 4 words.
 - **OKI phrase table:** the first 1 KB of the sample ROM is copied into block RAM during download. jt6295 drops a command that arrives mid-lookup, so table reads must be fast. Sample data stays in SDRAM.
-- **Audio** (`rtl/shangha3_mixer.sv`): YM2149 high-passed at about 15 Hz, mixed as `snd = oki × 8 + ay × 16`, saturated to 16-bit signed. Levels measured against the PCB in v0.1.6 (§10 item 2). Before v0.1.6: `oki × 2 + ay × 12` with a 233 Hz high-pass (a guess).
+- **Audio** (`rtl/shangha3_mixer.sv`): YM2149 high-passed at about 58 Hz, mixed as `snd = (oki × 45 + ay × 90) / 8` (three register stages), saturated to 16-bit signed. The balance was measured against the PCB in v0.1.6 (§10 item 2): `oki × 8 + ay × 16` with a 15 Hz high-pass. In v0.1.7 Aaron asked by ear for −3 dB overall and a little less bass. Before v0.1.6: `oki × 2 + ay × 12` with a 233 Hz high-pass (a guess).
 - **Inputs:** MiSTer joystick bits 0–3 directions, 4 = B1, 5 = B2, 6 = Start, 7 = Coin, 8 = Service. OSD "Service Mode" is status[6].
 - **Pause when OSD is open** (status[7], 0 = On by default): `OSD_STATUS & ~status[7]` freezes the CPU clock enables (mid-cycle, resuming exactly), the YM2149 and OKI enables, and mutes the output. Video timing, the frame-buffer copy and the blitter keep running, so the screen holds the last picture. Requested by Aaron after seeing it in Raki's CV1000 core (that repo publishes only its simulation, so this uses the standard MiSTer `OSD_STATUS` signal). Verified: `sim.sh game ... --pause 900 60` gives 60 frozen frames and then exactly the normal run shifted by 60 frames.
 - **Resets (v0.1.4):** `vid_reset` (= `sdram_init`, i.e. PLL not locked) is the only reset of the pixel clock, video timing, display path and DDR3 master, so sync never stops. The board reset (`reset || ioctl_download || sdram_init || !mem_ready`) resets the CPU, blitter, sound and I/O. In the video module it only acts as `clear`: black screen, a 0.9 ms sweep that zeroes the draw buffer (blitter held), and the picture returns with the first complete copy made after the sweep. Never reset the DDR3 master mid-burst; that's why it isn't on the board reset.
@@ -400,7 +401,7 @@ All logic runs on one **96 MHz** clock (2 × 48 MHz) with clock enables.
 ## 10. Open items and risks (priority order)
 
 1. **Same-board games** (the next big step): the full plan is in `docs/SAME_BOARD_GAMES.md`.
-2. **Sound balance:** measured and corrected in v0.1.6; Aaron's listening check on hardware is pending.
+2. **Sound balance:** measured and corrected in v0.1.6. Aaron approved it on hardware ("sounds great") and asked for −3 dB overall and a little less bass (v0.1.7).
    - **Source:** 1 minute of Aaron's PCB gameplay video (phone audio). A 4-minute version exists.
    - **Same tune in MAME:** idle 1-player games play a different tune; the attract demo (about 68–80 s into attract mode) plays the clip's tune. PCB 6–17 s = MAME attract 68.7–79.7 s; PCB 52–60 s = attract 71–79 s (the tune restarts at a new stage). Found by cross-correlating log spectrograms (300–3500 Hz).
    - **Core side:** `tools/mame/snd_regs.lua` logs every YM2149/OKI write in MAME. `scripts/snd_replay.sh` replays the log through the core's own jt49 + jt6295 + `shangha3_mixer` (no 68000 or blitter, about 12 s per emulated second), giving the two sources separately. Drop the SFX commands (OKI phrases below 32) first, so the OKI side is only the music's drums.
@@ -418,17 +419,14 @@ All logic runs on one **96 MHz** clock (2 × 48 MHz) with clock enables.
    - Trade-off: runs still drawing when the screen starts (about 2% in attract mode, mostly transitions) need a fallback: show that frame late (as now), or tear for one frame.
    - The real PCB's behavior is unknown. A high-frame-rate video of PCB vs. core (button press to screen change) would settle it.
    - Re-measure after any change with `scripts/mame_latency.py`.
-4. **CRT Adjust on hardware:** untested on a CRT. Picture position is correct on Aaron's display.
-   - **Also pending on hardware (v0.1.4):**
-     - CRT stays in sync while loading (MiSTer progress box visible) — confirmed on Aaron's CRT 20261022
-     - Start / Coin / Service buttons
-     - Orientation CW/CCW on HDMI
-     - Flip Screen after a reset (it works in simulation)
-5. **Frames that differ from MAME** at the 1-frame offset: about 86 of 1,001, during title transitions. Most are likely mid-frame palette changes, which the PCB also shows (confirmed for COLOR RAM CHECK). Some differ by only a few color levels; check the shadow rounding against MAME's palette shadow table.
-6. **Video:** sync positions are guesses (HS 416–447, VS lines 244–246). Centering looks right on Aaron's display. If HS_START changes, recompute the CRT Adjust table (formula in `rtl/s3_crt_adjust.sv`) and run `scripts/crt_test.sh`.
-7. **CPU cache miss cost:** about 1.6% slower during the boot ROM checksum. Gameplay felt right to Aaron.
-8. **Unknowns that need the PCB** (logic analyzer about $15–30, EPROM programmer about $50–70): real blitter speed and arbitration, frame buffering, refresh rate.
-9. **Release:**
+4. **CRT Adjust on hardware:** works on Aaron's CRT (v0.1.6). H-Position moves in 6-pixel steps by design (Kyle's glue: 16 settings cover −48 … +42 px); finer steps would need a wider OSD field.
+   - **v0.1.4 fixes, confirmed on hardware** (Aaron's CRT and Kyle's test, 20261022): CRT sync held while loading; Start / Coin / Service buttons; Orientation CW/CCW on HDMI; Flip Screen DIP.
+5. **MiSTer loading box is empty on Aaron's CRT** (v0.1.6): the box appears and sync holds, but no text or bar shows. His v0.1.4 video showed the text and MiSTer's bar inside it ("Assembling ROM #0", "Sending ROM #0"). The only video change since then is the removal of the core's own bar (v0.1.5), which can't draw or erase OSD text. Next step: a phone video of the load on v0.1.7, and the same load with the v0.1.4 rbf and with another arcade core, to tell a core problem from a MiSTer menu/firmware one.
+6. **Frames that differ from MAME** at the 1-frame offset: about 86 of 1,001, during title transitions. Most are likely mid-frame palette changes, which the PCB also shows (confirmed for COLOR RAM CHECK). Some differ by only a few color levels; check the shadow rounding against MAME's palette shadow table.
+7. **Video:** sync positions are guesses (HS 416–447, VS lines 244–246). Centering looks right on Aaron's display. If HS_START changes, recompute the CRT Adjust table (formula in `rtl/s3_crt_adjust.sv`) and run `scripts/crt_test.sh`.
+8. **CPU cache miss cost:** about 1.6% slower during the boot ROM checksum. Gameplay felt right to Aaron.
+9. **Unknowns that need the PCB** (logic analyzer about $15–30, EPROM programmer about $50–70): real blitter speed and arbitration, frame buffering, refresh rate.
+10. **Release:**
    - README with screenshots and install steps
    - dated `.rbf` in `releases/`
    - make the repo public (Settings → General → Change visibility)

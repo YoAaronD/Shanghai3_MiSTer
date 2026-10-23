@@ -6,11 +6,11 @@ Read first, in this order:
 2. `docs/SAME_BOARD_GAMES.md`: the plan for the next two games (milestones in §7, Aaron's decisions in §9)
 3. `CHANGELOG.md`: what each version changed
 
-## Where things stand (v0.1.6, 20261022)
+## Where things stand (v0.1.7, 20261022)
 
 - Shanghai III (Japan) runs on Aaron's MiSTer and meets 96 MHz timing. Its boot matches his PCB on video, and gameplay "feels right".
-- v0.1.6: sound balance measured against Aaron's PCB video and corrected (HANDOFF §10 item 2).
-- Left for v1.0.0: a listening check of the new balance, a CRT Adjust check, release prep. The one-frame difference vs. MAME is optional (HANDOFF §10).
+- v0.1.6: sound balance measured against Aaron's PCB video and corrected (HANDOFF §10 item 2). v0.1.7: −3 dB and a little less bass, by Aaron's ear. CRT Adjust confirmed on his CRT.
+- Left for v1.0.0: the empty MiSTer loading box (HANDOFF §10 item 5), release prep. The one-frame difference vs. MAME is optional (HANDOFF §10).
 - Next: grow this into a platform core (`game_id` selected by the MRA) for heberpop and blocken. Draft MRAs are in `docs/drafts/`.
 - On 20261022 the project moved from Aaron's work Claude account to his personal one. The old sandbox didn't carry over; HANDOFF §0 rebuilds everything.
 

@@ -13,6 +13,25 @@ Each entry below gives both: version, then date stamp.
 
 ---
 
+## v0.1.7 — 20261022
+
+Aaron's hardware check of v0.1.6 on his CRT: "looks great, sounds great, plays great".
+
+**Changed (by ear, Aaron's request)**
+- **Overall volume −3 dB**, with the YM2149/OKI balance unchanged: `(oki × 45 + ay × 90) / 8`. The mixer now has three register stages, because these constant multiplies are no longer free shifts and the 96 MHz clock has little slack (+0.094 ns in v0.1.6).
+- **A little less bass:** the YM2149 DC-blocker corner moved from 15 Hz to 58 Hz. The lowest notes (around 100 Hz) are about 1.3 dB quieter.
+
+**Confirmed on hardware**
+- v0.1.6 on Aaron's CRT: picture, sound balance and gameplay; CRT Adjust works.
+- Kyle (kyledlester) tested v0.1.4: Start/Coin/Service, CRT sync during loading, the Flip Screen DIP and CW/CCW rotation all work. He also reported the double loading bar, fixed in v0.1.5.
+- v0.1.6 build: 96 MHz setup slack +0.094 ns.
+
+**Checked**
+- CRT Adjust H-Position moves in 6-pixel steps (H-Size in 1 % steps, V-Shift in 1-line steps). That's intended: the step size and OSD layout come from Kyle's Nostradamus glue, and 16 settings × 6 pixels cover −48 … +42 pixels.
+
+**Open**
+- During a ROM load the MiSTer progress box appears on the CRT (sync held), but Aaron sees no text or bar in it. In his v0.1.4 video, the box showed "Loading / Assembling ROM #0" and "Sending ROM #0" with MiSTer's progress bar. The only video change since then is that the core's own bar was removed (v0.1.5). Under investigation.
+
 ## v0.1.6 — 20261022
 
 Sound balance, measured against Aaron's PCB gameplay video.

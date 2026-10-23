@@ -153,7 +153,7 @@ Frames are written as `.ppm` images (384 × 224). Most image viewers open them.
 
 **Sound, SDRAM and MiSTer wrapper**
 
-- OKI M6295 (`jt6295`): 1.056 MHz from 96 MHz × 11/1000 (exact), pin 7 high (8 kHz). The mixer (`rtl/shangha3_mixer.sv`) high-passes the YM2149 at about 15 Hz and mixes `oki × 8 + ay × 16`. The balance was measured against a recording of the real PCB (v0.1.6).
+- OKI M6295 (`jt6295`): 1.056 MHz from 96 MHz × 11/1000 (exact), pin 7 high (8 kHz). The mixer (`rtl/shangha3_mixer.sv`) high-passes the YM2149 at about 58 Hz and mixes `(oki × 45 + ay × 90) / 8`. The balance was measured against a recording of the real PCB (v0.1.6), then the overall level and bass were trimmed by ear (v0.1.7).
 - DIP default for bank 2 is now 0xBF (MAME's default). With 0xFF, demo sounds were off.
 - ROM storage (`rtl/shangha3_mem.sv`): Sorgelig's 4-channel SDRAM controller (`rtl/sdram.sv`, from the Irem M92 core) at 96 MHz. Channels:
   - CPU cache-line fills (highest priority)
@@ -200,7 +200,7 @@ See `CHANGELOG.md`. Git tags (`v0.1.0` …) mark milestones; following MiSTer cu
 
 ## Next steps
 
-Status: v0.1.6 runs on a real MiSTer (it meets timing, its boot matches the PCB, and full games were played).
+Status: v0.1.7 runs on a real MiSTer (it meets timing, its boot matches the PCB, and full games were played).
 
 1. Shanghai III v1.0.0:
    - listening check of the sound balance (measured against the PCB in v0.1.6)
