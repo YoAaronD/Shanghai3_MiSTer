@@ -17,7 +17,7 @@ verilator --cc --exe --build -O2 -j 2 \
     "$ROOT"/ext/jt49/hdl/jt49*.v \
     "$ROOT"/ext/jt6295/hdl/jt6295*.v \
     "$ROOT/rtl/shangha3_video_timing.sv" "$ROOT/rtl/shangha3_blitter.sv" \
-    "$ROOT/rtl/shangha3_video.sv" "$ROOT/rtl/shangha3_board.sv" \
+    "$ROOT/rtl/shangha3_video.sv" "$ROOT/rtl/shangha3_mixer.sv" "$ROOT/rtl/shangha3_board.sv" \
     "$ROOT/sim/tb_main.cpp" > "$OBJ.build.log" 2>&1 || { tail -30 "$OBJ.build.log"; exit 1; }
 
 # fx68k loads its microcode with $readmemb("microrom.mem"), relative to the cwd

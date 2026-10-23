@@ -15,11 +15,12 @@
   - Has no measuring tools beyond basic electrical ones.
   - Wants to build **several more arcade cores** after this one.
 - **Friend:** Kyle (github.com/kyledlester) has built several MiSTer arcade cores with AI assistance. His Nostradamus core was the model for this project's workflow and CRT Adjust glue.
-- **State (v0.1.3, 20261021):** Shanghai III (Japan) **runs on Aaron's MiSTer**.
+- **State (v0.1.6, 20261022):** Shanghai III (Japan) **runs on Aaron's MiSTer**.
   - It meets timing at 96 MHz.
   - Its boot checks match his real PCB on video.
   - He played two full games: "feels right"; all controls, Service Mode and pause-on-OSD work.
-  - Remaining before v1.0.0: sound balance against the PCB (he has a 4-minute PCB video to share), a CRT Adjust check, and the optional one-frame timing decision (§10).
+  - v0.1.6 (20261022): sound balance measured against his PCB gameplay video and corrected (OKI about 9.5 dB louder relative to the YM2149; see §10 item 2 for the method). Aaron's listening check is pending.
+  - Remaining before v1.0.0: a listening check of v0.1.6, a CRT Adjust check, and the optional one-frame timing decision (§10).
   - Next big step: the same-board games (`docs/SAME_BOARD_GAMES.md`).
 
 ---
@@ -65,14 +66,14 @@
 | MiSTer wrapper (`Shanghai3.sv`), Quartus project, MRA | Done | Builds in Quartus 17.0.2 Lite; fits after moving the display buffer to DDR3 (v0.1.0); meets 96 MHz timing, +1.118 ns setup slack (v0.1.1) |
 | Pause when OSD is open | Done (v0.1.3) | High in simulation (60-frame pause resumes frame-exact); hardware check pending |
 | Real hardware | **Runs** (v0.1.1+) | Boots; self-test order and timing match the PCB on video; two full games played; all controls and Service Mode work. The DDR3 and SDRAM paths therefore work on hardware |
-| Sound balance | Unverified | Mix levels are a guess; PCB video exists, not yet analysed |
+| Sound balance | Measured (v0.1.6) | OKI vs. YM2149 fitted to a phone recording of the PCB playing the same tune: the new mix is within about 1 dB (median over bands). Listening check on hardware pending |
 | CRT Adjust on hardware | Untested | Picture position is correct on Aaron's display |
 
 **Next actions:**
 1. **Block RAM is nearly full:** v0.1.4 uses 520 of 553 M10K blocks (94%), with +0.366 ns setup slack. Get the per-entity M10K breakdown (Fitter → Resource Utilization by Entity) before adding the new games' memories (`docs/SAME_BOARD_GAMES.md` §6).
 2. **Same-board games:** follow `docs/SAME_BOARD_GAMES.md` §7, milestones 0–7.
 3. **Shanghai III v1.0.0, in parallel:**
-   - sound balance from Aaron's PCB video (AirDrop it to the Mac's linked folder; it's too large for the phone app)
+   - listen to v0.1.6's sound balance on hardware against the PCB
    - a CRT Adjust check on hardware
    - the one-frame timing decision
    - release prep (§13 phase 7)
@@ -122,6 +123,8 @@
     - draft MRAs for heberpop and blocken in `docs/drafts/`, ROMs and DIPs generated from the driver
     - `tools/mame/frame_log.lua` given a configurable blitter-go address
     - `tools/mame/sound_log.lua` added for the sound section's golden reference
+22. **v0.1.4–v0.1.5: fixes from Aaron's hardware testing** (20261022): Start/Service wiring, CRT sync during loading, draw buffer cleared on reset, HDMI rotation (`screen_rotate` through a DDR3 arbiter), loading bar removed. See `CHANGELOG.md`.
+23. **v0.1.6: sound balance from the PCB** (20261022): fitted against Aaron's 1-minute PCB gameplay clip (§10 item 2). OKI raised about 9.5 dB relative to the YM2149, overall level up about 11 dB, YM2149 DC blocker 233 Hz → 15 Hz. The season/flower pair sound is OKI phrase 24 and is in the clip at 51.6 s.
 
 ---
 
@@ -204,7 +207,8 @@ All logic runs on one **96 MHz** clock (2 × 48 MHz) with clock enables.
 
 | File | Role |
 |---|---|
-| `rtl/shangha3_board.sv` | The PCB: fx68k, address decode, work RAM (dual port), palette RAM (dual port), I/O, protection, IRQ, jt49, jt6295 + mixer, CPU write arbitration against the blitter |
+| `rtl/shangha3_board.sv` | The PCB: fx68k, address decode, work RAM (dual port), palette RAM (dual port), I/O, protection, IRQ, jt49, jt6295, CPU write arbitration against the blitter |
+| `rtl/shangha3_mixer.sv` | YM2149 + OKI mix: DC blocker (~15 Hz) and the levels measured against the PCB (v0.1.6: `oki*8 + ay*16`) |
 | `rtl/shangha3_blitter.sv` | GA9201 re-creation (two-phase, see below) |
 | `rtl/shangha3_video.sv` | Draw buffer (384 × 224 × 12 bit, BRAM), vblank copy to the display buffer in DDR3, line prefetch into a 2-line BRAM buffer, palette scan-out |
 | `rtl/shangha3_video_timing.sv` | Counters, blanking, placeholder syncs, `vblank_next` for CRT Adjust |
@@ -244,7 +248,7 @@ All logic runs on one **96 MHz** clock (2 × 48 MHz) with clock enables.
 - **SDRAM channels** (priority order): ch2 = CPU cache line, ch1 = OKI, ch3 = download, ch4 = blitter rows.
 - **CPU cache:** direct-mapped, 512 lines × 4 words.
 - **OKI phrase table:** the first 1 KB of the sample ROM is copied into block RAM during download. jt6295 drops a command that arrives mid-lookup, so table reads must be fast. Sample data stays in SDRAM.
-- **Audio:** YM2149 high-passed, mixed as `snd = oki × 2 + ay × 12`, saturated to 16-bit signed. The levels are a guess.
+- **Audio** (`rtl/shangha3_mixer.sv`): YM2149 high-passed at about 15 Hz, mixed as `snd = oki × 8 + ay × 16`, saturated to 16-bit signed. Levels measured against the PCB in v0.1.6 (§10 item 2). Before v0.1.6: `oki × 2 + ay × 12` with a 233 Hz high-pass (a guess).
 - **Inputs:** MiSTer joystick bits 0–3 directions, 4 = B1, 5 = B2, 6 = Start, 7 = Coin, 8 = Service. OSD "Service Mode" is status[6].
 - **Pause when OSD is open** (status[7], 0 = On by default): `OSD_STATUS & ~status[7]` freezes the CPU clock enables (mid-cycle, resuming exactly), the YM2149 and OKI enables, and mutes the output. Video timing, the frame-buffer copy and the blitter keep running, so the screen holds the last picture. Requested by Aaron after seeing it in Raki's CV1000 core (that repo publishes only its simulation, so this uses the standard MiSTer `OSD_STATUS` signal). Verified: `sim.sh game ... --pause 900 60` gives 60 frozen frames and then exactly the normal run shifted by 60 frames.
 - **Resets (v0.1.4):** `vid_reset` (= `sdram_init`, i.e. PLL not locked) is the only reset of the pixel clock, video timing, display path and DDR3 master, so sync never stops. The board reset (`reset || ioctl_download || sdram_init || !mem_ready`) resets the CPU, blitter, sound and I/O. In the video module it only acts as `clear`: black screen, a 0.9 ms sweep that zeroes the draw buffer (blitter held), and the picture returns with the first complete copy made after the sweep. Never reset the DDR3 master mid-burst; that's why it isn't on the board reset.
@@ -396,9 +400,19 @@ All logic runs on one **96 MHz** clock (2 × 48 MHz) with clock enables.
 ## 10. Open items and risks (priority order)
 
 1. **Same-board games** (the next big step): the full plan is in `docs/SAME_BOARD_GAMES.md`.
-2. **Sound balance** (Shanghai III v1.0.0 blocker): mix levels `snd = oki × 2 + ay × 12` are a guess.
-   - Aaron has a 4-minute PCB gameplay video with clear music. It's too large for the phone app, so AirDrop it to the Mac and put it in the linked folder.
-   - Extract the audio (ffmpeg is in the sandbox) and compare the OKI-vs-YM2149 balance with the HDL's `--wav` output for the same scene. MAME `-wavwrite` gives a second reference.
+2. **Sound balance:** measured and corrected in v0.1.6; Aaron's listening check on hardware is pending.
+   - **Source:** 1 minute of Aaron's PCB gameplay video (phone audio). A 4-minute version exists.
+   - **Same tune in MAME:** idle 1-player games play a different tune; the attract demo (about 68–80 s into attract mode) plays the clip's tune. PCB 6–17 s = MAME attract 68.7–79.7 s; PCB 52–60 s = attract 71–79 s (the tune restarts at a new stage). Found by cross-correlating log spectrograms (300–3500 Hz).
+   - **Core side:** `tools/mame/snd_regs.lua` logs every YM2149/OKI write in MAME. `scripts/snd_replay.sh` replays the log through the core's own jt49 + jt6295 + `shangha3_mixer` (no 68000 or blitter, about 12 s per emulated second), giving the two sources separately. Drop the SFX commands (OKI phrases below 32) first, so the OKI side is only the music's drums.
+   - **Fit:** `tools/audio/balance_fit.py` aligns 1-second pieces and fits PCB band power = a·YM2149 + b·OKI + noise per band (trimmed least squares, so clicks and voices drop out).
+   - **Results:**
+     - The first-guess mix (`oki×2 + ay×12`) had the OKI 8.4 dB too quiet (median; bands 3.5–17 dB).
+     - The season/flower pair sound (OKI phrase 24, at 51.59 s in the clip) measured about +11 dB (middle bands), consistent with the drums.
+     - MAME's own mix puts the OKI about 12 dB higher than the first guess, the same direction.
+     - v0.1.6 uses `oki×8 + ay×16`: OKI ×3 relative to the YM2149 (+9.5 dB), and about 11 dB louder overall (the old mix peaked near −13 dBFS). The fit now gives −1.1 dB median.
+   - **Also fixed:** the YM2149 DC blocker had a 233 Hz corner, which thinned bass notes. It is now about 15 Hz, like a coupling capacitor.
+   - **Limits:** phone microphone and room, and jt49's volume curve vs. a real YM2149. The bands below 500 Hz and around 800–1000 Hz disagree most. If it sounds off on hardware, change the two constants in `shangha3_mixer.sv` and re-run `balance_fit.py --ay-gain A --oki-gain B` to see where they land.
+   - **OKI phrases** (from MAME snapshots): 3 = tile pick; 24 = season/flower pair (picture: winter + autumn tiles); 27 = ending jingle; 32–61 = music drums (attenuation 3 or 5).
 3. **One frame later than MAME** (confirmed in simulation; not noticeable in play per Aaron; his call whether to fix). The copy to the display buffer happens at vblank start, before the blitter draws the frame the game just started, so each result reaches the screen one frame (about 17 ms) after MAME shows it.
    - Fix: start the copy when the blitter finishes, with the copy running ahead of the scan-out (it is about 16× faster than the beam). Most runs finish within vblank.
    - Trade-off: runs still drawing when the screen starts (about 2% in attract mode, mostly transitions) need a fallback: show that frame late (as now), or tear for one frame.

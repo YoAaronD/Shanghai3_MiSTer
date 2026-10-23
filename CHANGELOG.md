@@ -13,6 +13,24 @@ Each entry below gives both: version, then date stamp.
 
 ---
 
+## v0.1.6 — 20261022
+
+Sound balance, measured against Aaron's PCB gameplay video.
+
+**Changed**
+- **OKI (drums, voices and effects) louder relative to the YM2149 music:** now ×3 (+9.5 dB) compared with before. The mix is `oki × 8 + ay × 16` (was `oki × 2 + ay × 12`).
+  - Measured on the PCB recording, the old mix had the OKI 8.4 dB too quiet (median over frequency bands). The season/flower pair sound alone measured about 11 dB too quiet. The new mix lands within about 1 dB.
+  - The overall level is about 11 dB higher; the old mix peaked near −13 dBFS. There's no clipping in the replayed demo music with effects.
+- **YM2149 bass:** the filter that removes the chip's DC offset cut at 233 Hz, which thinned low notes. It now cuts at about 15 Hz, like the coupling capacitor on a real board.
+- The mixer moved to its own file, `rtl/shangha3_mixer.sv` (added to `files.qip`).
+
+**How it was measured**
+- MAME's attract demo plays the same tune as the PCB clip. Its YM2149/OKI register writes (`tools/mame/snd_regs.lua`) were replayed through the core's own sound chips and mixer (`scripts/snd_replay.sh`, new). `tools/audio/balance_fit.py` (new) then fitted the PCB audio as YM2149 + OKI, band by band. Details: `docs/HANDOFF.md` §10 item 2.
+- Limits: a phone microphone in a room. The ratio is reliable to a few dB, not better.
+
+**Found along the way**
+- The season/flower pair sound is OKI phrase 24 (seen in MAME removing a winter + autumn pair). It plays in the PCB clip at 51.6 s.
+
 ## v0.1.5 — 20261022
 
 **Changed**
@@ -20,6 +38,8 @@ Each entry below gives both: version, then date stamp.
 
 **Confirmed on hardware**
 - The CRT stays in sync while the ROMs load.
+
+**Build:** 96 MHz setup slack +0.410 ns.
 
 ## v0.1.4 — 20261022
 

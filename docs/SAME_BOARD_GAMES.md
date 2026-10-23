@@ -305,7 +305,9 @@ z80  : cen = every 16 clocks (6 MHz), frozen by pause
 jt12 : cen = every 12 clocks (8 MHz)
 oki  : jt6295, cen = existing 1.056 MHz enable; rom_addr -> bank logic -> shangha3_mem OKI port
 mix  : snd = sat16( k_fm*(fm_l+fm_r)/2 + k_oki*oki ); start from MAME's 0.40 / 1.0 and
-       match a MAME -wavwrite capture of the same scene, then Aaron's ears/PCB
+       match a MAME -wavwrite capture of the same scene, then a PCB recording with
+       the v0.1.6 method (HANDOFF §10 item 2: snd_regs.lua -> snd_replay.sh ->
+       tools/audio/balance_fit.py; extend the replay bench with the Z80 + jt12)
 ```
 
 Verification:

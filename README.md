@@ -58,7 +58,10 @@ rtl/                      the core: board, blitter, video, ROM storage, SDRAM co
 releases/                 MRA file
 sim/                      Verilator testbenches, reference model, simulation output
 scripts/                  build/sim/ROM helper scripts
-docs/                     MAME driver for reference, sample images
+docs/                     HANDOFF.md (full technical handoff), SAME_BOARD_GAMES.md (plan for
+                          Hebereke no Popoon and Blocken), drafts/ (their draft MRAs), MAME driver, images
+tools/mame/               MAME Lua scripts: per-frame capture, sound-traffic log (golden references)
+CLAUDE.md                 steering notes for Claude sessions working on this repo
 ext/                      reused open-source cores (fx68k, jt49, jt6295), see ext/README.md
 microrom.mem, nanorom.mem fx68k microcode (Quartus loads them from the project folder)
 ```
@@ -150,7 +153,7 @@ Frames are written as `.ppm` images (384 × 224). Most image viewers open them.
 
 **Sound, SDRAM and MiSTer wrapper**
 
-- OKI M6295 (`jt6295`): 1.056 MHz from 96 MHz × 11/1000 (exact), pin 7 high (8 kHz). The mixer high-passes the YM2149 and adds it at about 0.4× the OKI level. Levels are a first guess; tune by ear.
+- OKI M6295 (`jt6295`): 1.056 MHz from 96 MHz × 11/1000 (exact), pin 7 high (8 kHz). The mixer (`rtl/shangha3_mixer.sv`) high-passes the YM2149 at about 15 Hz and mixes `oki × 8 + ay × 16`. The balance was measured against a recording of the real PCB (v0.1.6).
 - DIP default for bank 2 is now 0xBF (MAME's default). With 0xFF, demo sounds were off.
 - ROM storage (`rtl/shangha3_mem.sv`): Sorgelig's 4-channel SDRAM controller (`rtl/sdram.sv`, from the Irem M92 core) at 96 MHz. Channels:
   - CPU cache-line fills (highest priority)
@@ -197,15 +200,14 @@ See `CHANGELOG.md`. Git tags (`v0.1.0` …) mark milestones; following MiSTer cu
 
 ## Next steps
 
-1. Build in Quartus on a PC and test on the DE10-Nano (see "Building the core"). The first build ran out of M10K blocks (553 on the DE10-Nano), so the display buffer moved to DDR3. Core block RAM is now about 270 M10K:
-   - draw buffer: 1.03 Mbit
-   - command snapshot: 352 Kbit
-   - tilemap snapshot: 128 Kbit
-   - work RAM: 512 Kbit
-   - palette: 32 Kbit
+Status: v0.1.6 runs on a real MiSTer (it meets timing, its boot matches the PCB, and full games were played).
 
-   If it still doesn't fit, see the fallback list in `docs/HANDOFF.md` §4.
-2. Tune audio levels by ear, and check the controls and DIP switches.
+1. Shanghai III v1.0.0:
+   - listening check of the sound balance (measured against the PCB in v0.1.6)
+   - check CRT Adjust on a CRT
+   - decide on the one-frame difference vs. MAME (`docs/HANDOFF.md` §10)
+   - release
+2. Grow the core into a platform core for Hebereke no Popoon and Blocken (`docs/SAME_BOARD_GAMES.md`).
 3. Later, measure on the real PCB: refresh rate, sync timing, and blitter speed.
 
 ## Licenses

@@ -451,26 +451,17 @@ module shangha3_board (
     );
 
     // ------------------------------------------------------------------
-    // Mixer. MAME: YM2149 at 0.30 per channel, OKI at 1.0. The YM2149 output
-    // is unipolar, so a slow high-pass removes its DC offset first.
-    // Levels are a starting point; adjust by ear on real hardware.
+    // Mixer (levels measured against the PCB; see shangha3_mixer.sv)
     // ------------------------------------------------------------------
-    logic signed [21:0] ay_dc;          // DC estimate, 10.12 fixed point
-    logic signed [10:0] ay_ac;
-    always_ff @(posedge clk) begin
-        if (reset) ay_dc <= 22'sd512 <<< 12;
-        else if (ce_psg) ay_dc <= ay_dc + ((($signed({1'b0, psg_snd}) <<< 12) - ay_dc) >>> 10);
-        ay_ac <= $signed({1'b0, psg_snd}) - 11'(ay_dc >>> 12);
-    end
-
-    always_ff @(posedge clk) begin
-        logic signed [17:0] mix;
-        mix = 18'(oki_snd) * 18'sd2 + 18'(ay_ac) * 18'sd12;
-        if      (pause_q)           snd <= 16'sd0;          // silent while paused
-        else if (mix >  18'sd32767) snd <= 16'sd32767;
-        else if (mix < -18'sd32768) snd <= -16'sd32768;
-        else                        snd <= 16'(mix);
-    end
+    shangha3_mixer u_mix (
+        .clk     (clk),
+        .reset   (reset),
+        .ce_psg  (ce_psg),
+        .mute    (pause_q),
+        .psg_snd (psg_snd),
+        .oki_snd (oki_snd),
+        .snd     (snd)
+    );
 
     // ------------------------------------------------------------------
     // CPU read data + DTACK

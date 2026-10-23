@@ -28,6 +28,7 @@ set_global_assignment -name SYSTEMVERILOG_FILE rtl/sdram.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/shangha3_video_timing.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/shangha3_blitter.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/shangha3_video.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/shangha3_mixer.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/shangha3_board.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/shangha3_mem.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/shangha3_ddr_arb.sv
