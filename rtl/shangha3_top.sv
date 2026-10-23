@@ -6,6 +6,7 @@ module shangha3_top (
     input  logic        reset,          // from MiSTer (menu reset, buttons)
     input  logic        sdram_init,     // hold high until the PLL is locked
     input  logic        pause,          // freeze the game (e.g. while the OSD is open)
+    input  logic [2:0]  snd_balance,    // OSD OKI vs YM2149 balance (0 = PCB)
 
     // ROM download from the MiSTer menu / MRA
     input  logic        ioctl_download,
@@ -107,7 +108,7 @@ module shangha3_top (
     logic        oki_rom_ok;
 
     shangha3_board u_board (
-        .clk, .reset(board_reset), .vid_reset(sdram_init), .pause,
+        .clk, .reset(board_reset), .vid_reset(sdram_init), .pause, .snd_balance,
         .prog_addr, .prog_cs, .prog_data, .prog_ok,
         .in_inputs, .in_system, .dsw1, .dsw2,
         .ce_pix, .hsync, .vsync, .hblank, .vblank, .vblank_next, .red, .green, .blue,

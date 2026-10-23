@@ -1,3 +1,9 @@
+<!--
+  Shanghai III (Japan) - Sunsoft 1993 - MRA for the Shanghai3 MiSTer core.
+  MAME set shangha3j (MAME 0.289 sunelectronics/shangha3.cpp). No ROM data is embedded in this file.
+  Put shangha3j.zip in games/mame/; with a split set, also its parent shangha3.zip
+  (the graphics and sample ROMs are in the parent). A merged shangha3.zip alone also works.
+-->
 <misterromdescription>
     <name>Shanghai III (Japan)</name>
     <setname>shangha3j</setname>
@@ -6,6 +12,8 @@
     <manufacturer>Sunsoft</manufacturer>
     <category>Puzzle</category>
     <rbf>Shanghai3</rbf>
+    <mameversion>0289</mameversion>
+    <players>2</players>
     <rotation>horizontal</rotation>
 
     <joystick>8-way</joystick>
@@ -24,7 +32,7 @@
     </switches>
 
     <!-- One byte stream; the core interleaves the two program EPROMs itself.
-         Works with a split set (shangha3j.zip) or a merged set (shangha3.zip). -->
+         Looks in shangha3j.zip first, then shangha3.zip (split, non-merged or merged sets). -->
     <rom index="0" zip="shangha3j.zip|shangha3.zip" md5="None">
         <part name="s3j_v11.ic3" crc="e98ce9c8"/>
         <part name="s3j_v11.ic2" crc="09174620"/>

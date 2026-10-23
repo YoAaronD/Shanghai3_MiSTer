@@ -22,6 +22,7 @@ module shangha3_board (
     input  logic        reset,
     input  logic        vid_reset,    // video timing + display path: power-up only, so sync never stops
     input  logic        pause,        // freeze CPU and sound (OSD open); video keeps running
+    input  logic [2:0]  snd_balance,  // OSD OKI vs YM2149 balance (0 = PCB), see shangha3_mixer.sv
 
     // program ROM (512 KB, 16-bit, big-endian words)
     output logic [18:1] prog_addr,
@@ -458,6 +459,7 @@ module shangha3_board (
         .reset   (reset),
         .ce_psg  (ce_psg),
         .mute    (pause_q),
+        .balance (snd_balance),
         .psg_snd (psg_snd),
         .oki_snd (oki_snd),
         .snd     (snd)

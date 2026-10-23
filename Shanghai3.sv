@@ -64,6 +64,7 @@ localparam CONF_STR = {
 	"O[122:121],Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",
 	"O[5:3],Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%,CRT 75%;",
 	"O[9:8],Orientation,Horizontal,Vertical CW,Vertical CCW;",
+	"O[12:10],OKI (drums/FX),PCB,OKI+,OKI++,OKI--,OKI-;",
 	"P1,CRT Adjust;",
 	"P1O[96],CRT Adjust,Off,On;",
 	"H1P1O[116:112],CRT H-Size,0,+1,+2,+3,+4,+5,+6,+7,+8,+9,+10,-12,-11,-10,-9,-8,-7,-6,-5,-4,-3,-2,-1;",
@@ -170,6 +171,7 @@ shangha3_top core
 	.reset(reset),
 	.sdram_init(~pll_locked),
 	.pause(OSD_STATUS & ~status[7]),   // freeze the game while the menu is open (option, default On)
+	.snd_balance(status[12:10]),       // OKI (drums/FX) vs YM2149 balance, 0 = PCB
 
 	.ioctl_download(ioctl_download),
 	.ioctl_index(ioctl_index),

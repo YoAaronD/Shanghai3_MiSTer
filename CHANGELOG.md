@@ -13,6 +13,26 @@ Each entry below gives both: version, then date stamp.
 
 ---
 
+## v1.0.0 — release candidate (date set at release)
+
+First public release.
+
+**Changed**
+- `README.md` is now for players: installing, controls, OSD options, DIP switches, what to expect, credits. Build and simulation notes moved to `docs/DEVELOPMENT.md`.
+- The development notes for AI-assisted sessions moved to a separate private repo; nothing in the core changed.
+- MRA: added `<mameversion>0289</mameversion>`, `<players>2</players>` and a header comment (including which ROM zips a split set needs).
+
+**Added**
+- `scripts/make_release.ps1`: copies the Quartus build to `releases/Shanghai3_YYYYMMDD.rbf` and makes a release zip laid out like the MiSTer SD card (`_Arcade/…`). Steps in `docs/DEVELOPMENT.md`.
+
+## v0.1.8 — 20261023
+
+**Added**
+- **OSD option "OKI (drums/FX)":** the balance between the two sound chips. The OKI M6295 plays the sound effects and the music's drums; the YM2149 plays the melody and bass line.
+  - Settings: **PCB** (default, the balance measured against the real board, identical to v0.1.7), OKI+ / OKI++ (+3 / +6 dB), OKI− / OKI−− (−3 / −6 dB).
+  - Each step moves the OKI half up and the YM2149 half down, so the overall loudness stays about the same (−2.3 … +2.8 dB RMS in the demo music, where the drums carry most of the energy) and nothing clips.
+  - Checked in the sound replay bench: PCB is bit-identical to v0.1.7; all five settings, no clipping.
+
 ## v0.1.7 — 20261022
 
 Aaron's hardware check of v0.1.6 on his CRT: "looks great, sounds great, plays great".
@@ -24,7 +44,7 @@ Aaron's hardware check of v0.1.6 on his CRT: "looks great, sounds great, plays g
 **Confirmed on hardware**
 - v0.1.6 on Aaron's CRT: picture, sound balance and gameplay; CRT Adjust works.
 - Kyle (kyledlester) tested v0.1.4: Start/Coin/Service, CRT sync during loading, the Flip Screen DIP and CW/CCW rotation all work. He also reported the double loading bar, fixed in v0.1.5.
-- v0.1.6 build: 96 MHz setup slack +0.094 ns.
+- v0.1.6 build: 96 MHz setup slack +0.094 ns. v0.1.7 build: +0.570 ns, 520 / 553 M10K blocks (94 %).
 
 **Checked**
 - CRT Adjust H-Position moves in 6-pixel steps (H-Size in 1 % steps, V-Shift in 1-line steps). That's intended: the step size and OSD layout come from Kyle's Nostradamus glue, and 16 settings × 6 pixels cover −48 … +42 pixels.
@@ -44,7 +64,7 @@ Sound balance, measured against Aaron's PCB gameplay video.
 - The mixer moved to its own file, `rtl/shangha3_mixer.sv` (added to `files.qip`).
 
 **How it was measured**
-- MAME's attract demo plays the same tune as the PCB clip. Its YM2149/OKI register writes (`tools/mame/snd_regs.lua`) were replayed through the core's own sound chips and mixer (`scripts/snd_replay.sh`, new). `tools/audio/balance_fit.py` (new) then fitted the PCB audio as YM2149 + OKI, band by band. Details: `docs/HANDOFF.md` §10 item 2.
+- MAME's attract demo plays the same tune as the PCB clip. Its YM2149/OKI register writes (`tools/mame/snd_regs.lua`) were replayed through the core's own sound chips and mixer (`scripts/snd_replay.sh`, new). `tools/audio/balance_fit.py` (new) then fitted the PCB audio as YM2149 + OKI, band by band. Details: `docs/DEVELOPMENT.md` (Sound balance).
 - Limits: a phone microphone in a room. The ratio is reliable to a few dB, not better.
 
 **Found along the way**
@@ -129,12 +149,11 @@ First version expected to compile in Quartus. Not yet tested on a MiSTer.
 
 **Added**
 - Real MAME as a reference: `scripts/build_mame.sh` (headless single-driver MAME), `tools/mame/frame_log.lua` (every frame plus blitter starts) and `scripts/mame_latency.py` (frame-timing comparison).
-- `CLAUDE.md`: steering file for future Claude sessions.
-- `docs/SAME_BOARD_GAMES.md`: plan for Hebereke no Popoon and Blocken.
+- Development notes and a plan for Hebereke no Popoon and Blocken (moved out of this repo in v1.0.0).
 - `CHANGELOG.md`: this file.
 
 **Known issues**
-- Each blitter result appears **one frame later than in MAME** (confirmed against real MAME, 700 of 700 matched frames). To be fixed after hardware bring-up; see `docs/HANDOFF.md` §10.
+- Each blitter result appears **one frame later than in MAME** (confirmed against real MAME, 700 of 700 matched frames). Kept for now: not noticeable in play.
 - 96 of 1,001 compared frames differ from MAME during title-screen transitions, some only by a few color levels. (v0.1.2: most likely mid-frame palette changes, which the PCB also shows.)
 - Never run on real hardware: SDRAM clock phase, DDR3 access, sync positions, centering and audio levels are untested.
 

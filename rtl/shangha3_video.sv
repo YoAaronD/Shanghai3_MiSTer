@@ -11,7 +11,7 @@
 // (86016 clocks = 0.9 ms at 96 MHz, as before); the DDR3 writes finish
 // shortly after from a FIFO. Output is tear-free. Each frame shows what
 // was drawn before vblank, which puts each blitter result one frame later
-// than MAME (measured with scripts/mame_latency.py; docs/HANDOFF.md s.10).
+// than MAME (measured with scripts/mame_latency.py; see docs/DEVELOPMENT.md).
 // How the real PCB buffers its frames is unknown.
 //
 // The display buffer used to be a second block-RAM copy (~130 of the

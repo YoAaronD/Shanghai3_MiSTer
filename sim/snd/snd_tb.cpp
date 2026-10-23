@@ -34,6 +34,7 @@ int main(int argc, char** argv) {
     size_t ei = 0; int busy = 0, phase = 0;   // write in progress: busy clocks left
     int psg_div = 0, oki_acc = 0, okiwait = 0; uint32_t okilast = 0xffffffff;
     std::vector<int16_t> wav;
+    top->balance = getenv("SND_BALANCE") ? atoi(getenv("SND_BALANCE")) : 0;   // mixer balance setting
     top->reset = 1;
     for (int i = 0; i < 100; i++) { top->clk = 0; top->eval(); top->clk = 1; top->eval(); }
     top->reset = 0;

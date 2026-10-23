@@ -12,6 +12,7 @@ module snd_top (
     input  logic [7:0]  din,
     output logic [9:0]  psg_snd,
     output logic signed [13:0] oki_snd,
+    input  logic [2:0]  balance,            // mixer balance (0 = PCB)
     output logic signed [15:0] snd,         // the board's mixer output
     output logic [17:0] oki_rom_addr,
     input  logic [7:0]  oki_rom_data,
@@ -28,7 +29,7 @@ module snd_top (
         .sound(oki_snd), .sample()
     );
     shangha3_mixer u_mix (
-        .clk(clk), .reset(reset), .ce_psg(ce_psg), .mute(1'b0),
+        .clk(clk), .reset(reset), .ce_psg(ce_psg), .mute(1'b0), .balance(balance),
         .psg_snd(psg_snd), .oki_snd(oki_snd), .snd(snd)
     );
 endmodule
