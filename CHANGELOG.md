@@ -33,6 +33,11 @@ First public release.
   - Each step moves the OKI half up and the YM2149 half down, so the overall loudness stays about the same (−2.3 … +2.8 dB RMS in the demo music, where the drums carry most of the energy) and nothing clips.
   - Checked in the sound replay bench: PCB is bit-identical to v0.1.7; all five settings, no clipping.
 
+**Build:** 96 MHz setup slack +0.615 ns; every clock passes setup, and `timing_paths.txt` reports no failing setup or hold paths.
+
+**Checked**
+- **MiSTer loading box (still open):** the new `scripts/osd_test.sh` runs the framework's own OSD module (`sys/osd.v`) on the core's video, drawing an info box the way the MiSTer menu does. Text shows at every CRT Adjust setting tried (Off, On at 0, and the extremes), so neither the core's video timing nor CRT Adjust should hide it. Next: compare with another arcade core that loads its ROMs the usual way, and with the v0.1.4 core, on the same MiSTer.
+
 ## v0.1.7 — 20261022
 
 Aaron's hardware check of v0.1.6 on his CRT: "looks great, sounds great, plays great".

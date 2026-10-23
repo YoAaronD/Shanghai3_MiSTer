@@ -73,6 +73,7 @@ scripts/crt_test.sh       # CRT Adjust: every H-Size at both H-Position extremes
 scripts/oki_test.sh       # OKI samples via download -> SDRAM vs. direct ROM, all 56 phrases (~20 min; --max N for less)
 scripts/sim_top.sh ROMDIR N   # end to end: MiSTer download -> SDRAM model -> boot -> DDR3 model
 scripts/snd_replay.sh LOG OUT.raw [OUT.wav]   # sound only: YM2149/OKI register log through jt49 + jt6295 + mixer
+scripts/osd_test.sh       # the MiSTer OSD's info box (sys/osd.v) over the core's video, CRT Adjust off and on
 ```
 
 MAME comparisons: `scripts/build_mame.sh` builds a headless MAME with only this driver; `tools/mame/frame_log.lua` captures every frame and blitter start, `scripts/mame_latency.py` compares frame timing and pixels, and `tools/mame/snd_regs.lua` logs every sound-chip write for `snd_replay.sh`.
