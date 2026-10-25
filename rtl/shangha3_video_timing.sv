@@ -1,9 +1,10 @@
 // Shanghai III video timing
 //
-// Source: MAME shangha3.cpp, screen->set_raw(48_MHz_XTAL / 6, 512, 0, 384, 263, 16, 240)
-//   pixel clock 8 MHz, 512 pixels per line, 263 lines per frame
-//   visible area 384 x 224 (lines 16..239)
-//   -> 59.41 Hz refresh. MAME notes "refresh rate is unknown" - verify on PCB later.
+// Pixel clock 8 MHz (48 MHz / 6), 512 pixels per line, 262 lines per frame,
+// visible area 384 x 224 (lines 16..239) -> 15.625 kHz, 59.64 Hz.
+// Measured on Aaron's PCB with an OSSC (20261024): "262-p, 15.62 kHz, 59.63 Hz".
+// MAME uses 263 lines (59.41 Hz) and notes "refresh rate is unknown"; the
+// core used that until v0.1.8 (OSSC: "263-p, 59.40 Hz").
 //
 // HSYNC / VSYNC positions are NOT known (MAME doesn't need them). The values
 // below are placeholders chosen to give a standard ~15.6 kHz signal; they
@@ -15,7 +16,7 @@ module shangha3_video_timing (
     input  logic       ce_pix,       // 8 MHz pixel clock enable
 
     output logic [8:0] hcnt,         // 0..511
-    output logic [8:0] vcnt,         // 0..262
+    output logic [8:0] vcnt,         // 0..261
     output logic       hblank,
     output logic       vblank,
     output logic       hsync,
@@ -29,7 +30,7 @@ module shangha3_video_timing (
     localparam int HS_START  = 416;  // placeholder
     localparam int HS_END    = 448;  // placeholder (4 us)
 
-    localparam int V_TOTAL   = 263;
+    localparam int V_TOTAL   = 262;  // PCB-measured (MAME: 263)
     localparam int V_FIRST   = 16;   // first visible line
     localparam int V_LAST    = 239;  // last visible line
     localparam int VS_START  = 244;  // placeholder

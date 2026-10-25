@@ -35,7 +35,7 @@ To install a build, rename it `Shanghai3_YYYYMMDD.rbf` and follow the installati
 | Inputs / DIPs | 200000, 200002; DIPs through the YM2149 I/O ports | Done |
 | Protection | Fixed read sequence @ 20004E | Done |
 | Interrupts | IRQ4 at vblank, ack @ 20000A | Done |
-| Video timing | 8 MHz pixel clock, 512 × 263, 384 × 224 visible | Done (sync positions not measured on the PCB; centering is right on CRTs tested) |
+| Video timing | 8 MHz pixel clock, 512 × 262, 384 × 224 visible, 59.64 Hz | Done. Line count measured on the PCB with an OSSC (262-p, 59.63 Hz); MAME uses 263. Sync positions not measured; centering is right on the CRTs tested |
 | YM2149 sound | 1.5 MHz | Done (jt49) |
 | OKI M6295 sound | 1.056 MHz, 8 kHz samples | Done (jt6295); samples from SDRAM |
 | GA9201 blitter | Custom chip that draws tiles into a frame buffer | Done: sprites, zoom, tilemaps, shadows, flip (no rotation). Pixel-exact against the software model |
@@ -129,7 +129,7 @@ Frames are written as `.ppm` images (384 × 224). Most image viewers open them.
   - Tilemaps: 7,023
   - Zoomed sprites: 891 (the floating score)
   - Rectangle fills, condensed 8×8 tilemaps, rotation: none
-  - Pen 14 shadows: used (tile drop shadows)
+  - Pen 14 shadows: used (tile drop shadows). A shadow sets bit 7 of the palette index (colours 0–127 → 128–255, where the game keeps darkened copies); shadows over shadows don't darken further, as on the PCB (v0.1.9; MAME darkens them again)
 - Workload: the busiest blitter run visits 172,032 pixels (about 2× the visible screen) across 614 commands. At 96 MHz with one run per frame, that leaves a budget of about 9 clocks per pixel. The budget should be fine, but graphics ROM fetches from SDRAM need to be burst reads, one 16-pixel tile row (8 bytes) at a time.
 
 **HDL blitter (`rtl/shangha3_blitter.sv`) and video (`rtl/shangha3_video.sv`)**
@@ -188,7 +188,7 @@ Frames are written as `.ppm` images (384 × 224). Most image viewers open them.
 - Placed in front of `arcade_video` in `Shanghai3.sv`. OSD page "CRT Adjust" (status bits 96, 101–108, 112–116).
 - `scripts/crt_test.sh` checks every H-Size at both H-Position extremes, plus V-Shift:
   - constant 6144-clock line period;
-  - 263 lines and 39 blank lines per frame;
+  - 262 lines and 38 blank lines per frame;
   - no picture during HSync;
   - all 224 source lines complete, with x running 0..383.
 

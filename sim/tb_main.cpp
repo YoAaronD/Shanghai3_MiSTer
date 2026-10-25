@@ -149,8 +149,8 @@ int main(int argc, char** argv) {
     top->reset = 0;
     top->vid_reset = 0;
 
-    // 1 frame = 512 * 263 pixels * 12 clocks
-    const uint64_t max_cycles = (uint64_t)(frames + 1) * 512 * 263 * 12;
+    // 1 frame = 512 * 262 pixels * 12 clocks
+    const uint64_t max_cycles = (uint64_t)(frames + 1) * 512 * 262 * 12;
 
     while (frame < frames && cycle < max_cycles && !Verilated::gotFinish()) {
         tick();
@@ -187,7 +187,7 @@ int main(int argc, char** argv) {
             if (frame == pause_from) top->pause = 1;
             if (frame == pause_from + pause_len) top->pause = 0;
             fprintf(tr, "%10.2f EV FRAME %d near_pc=%06X blit_busy=%.1f%% cpu_stall=%.1f%%\n", us, frame,
-                    last_rom_addr, 100.0 * busy_cycles / (512 * 263 * 12), 100.0 * stall_cycles / (512 * 263 * 12));
+                    last_rom_addr, 100.0 * busy_cycles / (512 * 262 * 12), 100.0 * stall_cycles / (512 * 262 * 12));
             stall_cycles = busy_cycles = 0;
             if (!frames_out.empty() && frame % every == 0) {
                 char path[512];

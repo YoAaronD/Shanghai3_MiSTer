@@ -34,9 +34,9 @@ int main(int argc, char** argv) {
     // enable in info mode: 0x40 | enable | info, then x, y, w/8, h/8, rotation
     spi_cmd(0x45, { (uint16_t)ix, (uint16_t)iy, (uint16_t)iw, (uint16_t)ih, 0 });
     // run 6 frames, measure the last
-    const long FRAME = 512L * 263 * 12;
+    const long FRAME = 512L * 262 * 12;
     long text = 0, box = 0;
-    std::vector<uint8_t> img(512 * 263 * 3, 0);
+    std::vector<uint8_t> img(512 * 262 * 3, 0);
     int x = 0, y = 0, prev_hs = 0, prev_vs = 0;
     long derun = 0, demax = 0, ndeedge = 0; int prev_de = 0;
     for (long c = 0; c < 6 * FRAME; c++) {
@@ -54,12 +54,12 @@ int main(int argc, char** argv) {
                 bool txt = ((p >> 22) & 3) == 3 && ((p >> 14) & 3) == 3 && ((p >> 6) & 3) == 3;
                 bool bx = ((p >> 21) & 1) || ((p >> 13) & 1) || ((p >> 5) & 1);   // OSD_COLOR bits (background)
                 text += txt; box += bx || txt;
-                if (x < 512 && y < 263) { uint8_t* q = &img[(y * 512 + x) * 3]; q[0] = p >> 16; q[1] = p >> 8; q[2] = p; }
+                if (x < 512 && y < 262) { uint8_t* q = &img[(y * 512 + x) * 3]; q[0] = p >> 16; q[1] = p >> 8; q[2] = p; }
             }
             x++;
         }
     }
-    FILE* f = fopen(argv[1], "wb"); fprintf(f, "P6 512 263 255\n"); fwrite(img.data(), 1, img.size(), f); fclose(f);
+    FILE* f = fopen(argv[1], "wb"); fprintf(f, "P6 512 262 255\n"); fwrite(img.data(), 1, img.size(), f); fclose(f);
     printf("DE: longest run %ld clocks, %ld DE pulses in the last frame\n", demax, ndeedge);
     printf("crt_on=%d hsize=%d hpos=%d vshift=%d: box pixels %ld, text pixels %ld\n", t->crt_on, t->crt_hsize, t->crt_hpos, t->crt_vshift, box, text);
     delete t; return 0;

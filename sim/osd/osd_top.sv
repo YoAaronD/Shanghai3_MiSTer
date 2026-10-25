@@ -32,7 +32,7 @@ module osd_top (
     always_ff @(posedge clk) vs_d <= vs;
     wire av_ce, av_hb, av_vb, av_hs, av_vs;
     wire [23:0] av_rgb;
-    s3_crt_adjust #(.SYS_HZ(96_000_000), .PIX_DIV(12), .HTOTAL(512), .VTOTAL(263)) crt_adjust (
+    s3_crt_adjust #(.SYS_HZ(96_000_000), .PIX_DIV(12), .HTOTAL(512), .VTOTAL(262)) crt_adjust (
         .clk_sys(clk), .ce_pix(ce_pix), .frame_event(vs && !vs_d),
         .osd_on(crt_on), .osd_hsize(crt_hsize), .osd_hpos(crt_hpos), .osd_vshift(crt_vshift),
         .sd_off(1'b1), .rgb_in(24'h000000),               // black: the board is in reset while loading

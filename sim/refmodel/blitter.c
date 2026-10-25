@@ -6,7 +6,8 @@
  *
  * Frame buffer: 512 x 263 entries of 12 bits
  *   bits 10..0  palette index (color * 16 + pen)
- *   bit  11     shadow bank (darkened copy of the palette)
+ *   bit  11     shadow bank (darkened copy of the palette; unused since the
+ *               PCB-matched shadow rule below)
  * The frame buffer is never cleared; the game overdraws it.
  */
 #include <stdint.h>
@@ -43,10 +44,11 @@ static inline void plot(int x, int y, int color, int pen, int shadows) {
     if (pen == 15) return;
     uint16_t *d = &fb[y][x];
     if (pen == 14 && shadows) {
-        /* MAME: shangha3 maps destination colours 0-127 to 128-255;
-           everything else goes to the generic darkened bank. */
-        if ((*d & 0x7ff) < 128 && !(*d & 0x800)) *d = *d + 128;
-        else *d |= 0x800;
+        /* Shadow = set bit 7 of the palette index (0-127 -> 128-255, the
+           game's darkened copies). Idempotent, as on the real PCB: shadows
+           over shadows don't darken again. MAME instead darkens a second time
+           through its generic shadow bank. */
+        *d |= 0x080;
         return;
     }
     *d = (uint16_t)(((color & 0x7f) << 4) | pen);

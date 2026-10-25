@@ -101,6 +101,7 @@ The arcade board makes its sound with two chips, mixed together on the board. Th
 ## Known differences
 
 - **One frame of display delay** compared with MAME: each new picture appears about 17 ms later. The original board's frame buffering isn't documented. The delay isn't noticeable in play.
+- **The title screen and the zodiac (layout select) wheel animate twice as fast as on the PCB** (60 updates per second instead of 30). Gameplay and the demo match. Being worked on.
 - The video sync positions are estimates; the picture is centered correctly on the CRTs it was tested on. If yours needs it, use CRT Adjust.
 
 ## Building from source

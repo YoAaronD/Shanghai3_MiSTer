@@ -25,6 +25,21 @@ First public release.
 **Added**
 - `scripts/make_release.ps1`: copies the Quartus build to `releases/Shanghai3_YYYYMMDD.rbf` and makes a release zip laid out like the MiSTer SD card (`_Arcade/…`). Steps in `docs/DEVELOPMENT.md`.
 
+## v0.1.9 — 20261024
+
+Two differences from the PCB, found in Aaron's side-by-side videos (PCB and MiSTer on the same display through an OSSC).
+
+**Fixed**
+- **Shadows over shadows no longer darken further.** On the PCB, where tile shadows overlap, or where the hand cursor's shadow passes over them, the shadow stays the same. The core, following MAME, darkened them a second time, so overlapping areas went nearly black and changed as the cursor moved.
+  - The rule now: a shadow sets bit 7 of the pixel's palette index. Colours 0–127 move to 128–255, where the game keeps their darkened copies (MAME's table for these colours is the same), and a second shadow changes nothing. MAME instead runs already-shadowed colours through a generic ×0.6 darkening.
+  - In MAME's gameplay screen about 5 % of the pixels were double shadows.
+  - Blitter test against the updated software model: 300 runs, pixel-exact.
+- **Refresh rate 59.64 Hz (262 lines per frame),** as measured on the PCB with an OSSC: "262-p, 15.62 kHz, 59.63 Hz". The core used MAME's 263 lines (OSSC: "263-p, 59.40 Hz"), so the whole game ran 0.4 % slow. One blank line less per frame; the picture position is unchanged.
+  - CRT Adjust bench: 59 settings, 5.1 M checks pass. Boot frames identical to the previous version.
+
+**Found, not fixed yet**
+- **The title screen and the zodiac wheel run at 30 updates per second on the PCB,** and at 60 on the core (and MAME). The scrolling text moves half as fast and blinks half as fast there. The demo game and gameplay run at 60 on both. Measured frame by frame from Aaron's videos. Likely cause: on the real board the CPU waits while the blitter uses the shared RAM, and the title screen is already close to the CPU's limit.
+
 ## v0.1.8 — 20261023
 
 **Added**

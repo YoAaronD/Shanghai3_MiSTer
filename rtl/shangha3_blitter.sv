@@ -14,7 +14,7 @@
 // Pen 15 is transparent; pen 14 is a shadow on sprites when shadow_en is set.
 //
 // Frame buffer: only the visible 384 x 224 area is stored (lines 16..239 of
-// the 263-line raster). Pixels outside it can never be seen, so they are
+// the 262-line raster). Pixels outside it can never be seen, so they are
 // clipped away here; the visible result is identical.
 //   entry = {shadow_bank, color[6:0], pen[3:0]}  (12 bits)
 //
@@ -234,10 +234,14 @@ module shangha3_blitter (
     wire [3:0]         pen      = row_data[{pix_col, 2'b00} +: 4];
     wire [16:0]        pix_addr = d_fbrow + 17'(d_curx);
 
-    // shadow: colours 0-127 move to 128-255, anything else to the dark bank
+    // shadow: set bit 7 of the palette index (colours 0-127 -> 128-255, where
+    // the game keeps their darkened versions). Idempotent, as on the PCB: a
+    // shadow drawn over an existing shadow (overlapping tile shadows, the hand
+    // cursor's shadow over them) leaves it unchanged. MAME darkens a second
+    // time through its generic shadow bank, which the PCB does not
+    // (Aaron's cursor videos, 20261024). The bit-11 shadow bank is unused now.
     function automatic logic [11:0] shadow_of(input logic [11:0] p);
-        if (!p[11] && p[10:0] < 11'd128) shadow_of = p + 12'd128;
-        else                             shadow_of = p | 12'h800;
+        shadow_of = p | 12'h080;
     endfunction
 
     // ------------------------------------------------------------------

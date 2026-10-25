@@ -111,7 +111,7 @@ int main(int argc, char** argv) {
         for (size_t i = 0; i < fb.size(); i++)
             if ((fb[i] & 0xfff) != (expect[i] & 0xfff)) { if (first < 0) first = i; bad++; }
         printf("%s  gfxlist=%04X  %8llu cycles (%5.1f%% of a frame)  %6llu row fetches  %s",
-               c.c_str(), gfxlist, (unsigned long long)cycles, 100.0 * cycles / (512 * 263 * 12),
+               c.c_str(), gfxlist, (unsigned long long)cycles, 100.0 * cycles / (512 * 262 * 12),
                (unsigned long long)gfx_fetches, bad ? "FAIL" : "ok");
         if (bad) {
             printf("  %d pixels differ, first at x=%d y=%d hdl=%03X ref=%03X", bad, first % 384, first / 384,
@@ -125,7 +125,7 @@ int main(int argc, char** argv) {
     }
     printf("\n%zu cases, %d failed. slowest: %s, %llu cycles = %.1f%% of a frame at 96 MHz\n",
            cases.size(), failures, worst_case.c_str(), (unsigned long long)worst_cycles,
-           100.0 * worst_cycles / (512 * 263 * 12));
+           100.0 * worst_cycles / (512 * 262 * 12));
     delete top;
     return failures ? 1 : 0;
 }

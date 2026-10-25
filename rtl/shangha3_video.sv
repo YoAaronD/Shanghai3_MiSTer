@@ -175,7 +175,7 @@ module shangha3_video (
         lb_q <= lbuf[lb_raddr];
     end
 
-    wire [8:0]  vnext_line = (vcnt == 9'd262) ? 9'd0 : vcnt + 9'd1;
+    wire [8:0]  vnext_line = (vcnt == 9'd261) ? 9'd0 : vcnt + 9'd1;   // 262-line raster
     wire [14:0] rd_base    = {rd_line, 6'b0} + {1'b0, rd_line, 5'b0};   // rd_line * 96
 
     assign ddr_be = 8'hff;
@@ -288,7 +288,7 @@ module shangha3_video (
 
     always_comb begin
         nh = (hcnt == 9'd511) ? 9'd0 : hcnt + 9'd1;
-        if (hcnt == 9'd511) nv = (vcnt == 9'd262) ? 9'd0 : vcnt + 9'd1;
+        if (hcnt == 9'd511) nv = (vcnt == 9'd261) ? 9'd0 : vcnt + 9'd1;   // 262-line raster
         else                nv = vcnt;
         nvis = (nh < 9'd384) && (nv >= 9'd16) && (nv <= 9'd239) && disp_valid;
     end

@@ -225,7 +225,7 @@ shangha3_top core
 );
 
 //////////////////////////   VIDEO   /////////////////////////////
-// 384 x 224 visible, 8 MHz pixel clock, 512 x 263 total (59.41 Hz)
+// 384 x 224 visible, 8 MHz pixel clock, 512 x 262 total (59.64 Hz, as measured on the PCB)
 
 // During a ROM download the board is held in reset, but the video timing
 // keeps running (sync never stops, so CRTs stay locked) and the picture is
@@ -240,7 +240,7 @@ wire frame_event = vs && !vs_d;            // once per frame, inside vertical bl
 
 wire        av_ce, av_hb, av_vb, av_hs, av_vs;
 wire [23:0] av_rgb;
-s3_crt_adjust #(.SYS_HZ(96_000_000), .PIX_DIV(12), .HTOTAL(512), .VTOTAL(263)) crt_adjust
+s3_crt_adjust #(.SYS_HZ(96_000_000), .PIX_DIV(12), .HTOTAL(512), .VTOTAL(262)) crt_adjust
 (
 	.clk_sys(clk_sys),
 	.ce_pix(ce_pix),

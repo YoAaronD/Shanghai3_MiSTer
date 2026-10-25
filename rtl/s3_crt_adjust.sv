@@ -20,7 +20,7 @@ module s3_crt_adjust #(
     parameter integer SYS_HZ  = 96_000_000,
     parameter integer PIX_DIV = 12,
     parameter integer HTOTAL  = 512,
-    parameter integer VTOTAL  = 263
+    parameter integer VTOTAL  = 262
 ) (
     input  wire        clk_sys,
     input  wire        ce_pix,

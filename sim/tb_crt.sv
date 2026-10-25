@@ -3,7 +3,7 @@
 // Source: shangha3_video_timing with a pattern whose colour encodes its own position:
 // R = y, G = x[7:0], B = 0x80 | x[8] (never black). For every setting in the sweep, after
 // settling, one full frame of the adjusted output is checked:
-//   - HSync period constant 6144 clk (512 dots x 12); 263 lines per frame;
+//   - HSync period constant 6144 clk (512 dots x 12); 262 lines per frame;
 //     VSync width 3 lines (the line/frame frequency the CRT locks to never changes);
 //   - no picture pixel while HSync is active;
 //   - exactly 224 picture lines, each carrying one source line, all source lines 0..223 present;
@@ -39,7 +39,7 @@ module tb_crt;
 
     logic on = 0; logic [4:0] hsz = 0; logic [3:0] hp = 0, vsh = 0;
     logic ce_o, a_hb, a_vb, a_hs, a_vs, act; logic [23:0] a_rgb;
-    s3_crt_adjust #(.SYS_HZ(96_000_000), .PIX_DIV(12), .HTOTAL(512), .VTOTAL(263)) dut(.clk_sys(clk), .ce_pix(ce_pix), .frame_event(fs),
+    s3_crt_adjust #(.SYS_HZ(96_000_000), .PIX_DIV(12), .HTOTAL(512), .VTOTAL(262)) dut(.clk_sys(clk), .ce_pix(ce_pix), .frame_event(fs),
         .osd_on(on), .osd_hsize(hsz), .osd_hpos(hp), .osd_vshift(vsh), .sd_off(1'b1),
         .rgb_in(rgb), .hblank_in(ohb), .vblank_in(ovb), .hsync_in(ohs), .vsync_in(ovs), .vb_next_in(ovn),
         .ce_out(ce_o), .rgb_out(a_rgb), .hblank_out(a_hb), .vblank_out(a_vb),
@@ -109,9 +109,9 @@ module tb_crt;
             phs = a_hs; pvs = a_vs;
         end
         check(lp_min == 6144 && lp_max == 6144, $sformatf("%s line period %0d..%0d", tag, lp_min, lp_max));
-        check(lines == 263, $sformatf("%s lines %0d", tag, lines));
-        // the scaler / OSD need a real vertical blank (39 lines) in the adjusted stream
-        check(vb_lines == 39, $sformatf("%s vblank lines %0d", tag, vb_lines));
+        check(lines == 262, $sformatf("%s lines %0d", tag, lines));
+        // the scaler / OSD need a real vertical blank (38 lines) in the adjusted stream
+        check(vb_lines == 38, $sformatf("%s vblank lines %0d", tag, vb_lines));
         check(vs_lines == 3, $sformatf("%s vsync lines %0d", tag, vs_lines));
         check(bad_sync == 0, $sformatf("%s %0d picture pixels during HSync", tag, bad_sync));
         check(pic_lines == 224, $sformatf("%s picture lines %0d", tag, pic_lines));
