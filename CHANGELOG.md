@@ -25,6 +25,32 @@ First public release.
 **Added**
 - `scripts/make_release.ps1`: copies the Quartus build to `releases/Shanghai3_YYYYMMDD.rbf` and makes a release zip laid out like the MiSTer SD card (`_Arcade/…`). Steps in `docs/DEVELOPMENT.md`.
 
+## v0.1.10 — 20261025
+
+Game speed matched to the PCB.
+
+**Fixed**
+- **The title screen, mode select and zodiac wheel now run at 30 updates per second, as on the PCB** (the core and MAME ran them at 60). Their timers follow: the mode-select timeout now takes about 15 s, as on Aaron's PCB (14.9 s), instead of 7.4 s. Gameplay and the demo stay at 60, as on the PCB.
+
+**How the game paces itself** (from its 68000 code, disassembled with MAME's debugger)
+- At the end of each update the main loop raises a "done" flag (307906) and waits. The vblank interrupt starts the graphics chip on the new picture, reads the controls and releases the main loop, but only if that flag is up. An update that isn't finished by the next vblank waits a whole extra frame, so that screen runs at 30.
+- Early in each update the main loop also waits for vblank (10A42) before doing some screen work.
+- The music driver runs in the vblank interrupt every frame, so the music tempo never changes.
+
+**The model** (`rtl/shangha3_board.sv`)
+- On the real board the CPU stops while the much slower GA9201 draws. The core now holds the CPU for 6.875 clocks (72 ns) per pixel its blitter processes, applied from the end of vblank (the CPU must get through vblank first, or every screen would drop to 30).
+- Calibrated from Aaron's videos and per-screen measurements (game logic per update from MAME, pixels per picture):
+  - mode select: 44 % of a frame of logic, 1.78 screens of pixels: must miss the frame;
+  - the busiest demo screen: 26 % and 1.76 screens: must not.
+  - That leaves 5.9 to 7.9 clocks per pixel (about 12 to 16 Mpixel/s for the real chip); 6.875 is in the middle.
+- Verified in simulation: title, mode select and zodiac at 29.8 updates/s, gameplay at 59.6 (its update takes 76 % of a frame), the attract demo at 58–60 (the PCB video also shows an occasional dropped update there).
+
+**Added**
+- `scripts/frame_budget.py`: updates per second, work per update and blitter time, from a board trace.
+- `sim/tb_main.cpp`: `--press MASK FROM LEN` (coin/start) and `--pressin MASK FROM LEN` (player buttons), to reach the menus and gameplay in simulation.
+- `tools/mame/blit_load.lua`: per-frame blitter workload and update timing in MAME.
+- `scripts/sim.sh`: `SIM_OBJ=dir` builds into another folder, so two simulations can run side by side.
+
 ## v0.1.9 — 20261024
 
 Two differences from the PCB, found in Aaron's side-by-side videos (PCB and MiSTer on the same display through an OSSC).
@@ -37,8 +63,8 @@ Two differences from the PCB, found in Aaron's side-by-side videos (PCB and MiST
 - **Refresh rate 59.64 Hz (262 lines per frame),** as measured on the PCB with an OSSC: "262-p, 15.62 kHz, 59.63 Hz". The core used MAME's 263 lines (OSSC: "263-p, 59.40 Hz"), so the whole game ran 0.4 % slow. One blank line less per frame; the picture position is unchanged.
   - CRT Adjust bench: 59 settings, 5.1 M checks pass. Boot frames identical to the previous version.
 
-**Found, not fixed yet**
-- **The title screen and the zodiac wheel run at 30 updates per second on the PCB,** and at 60 on the core (and MAME). The scrolling text moves half as fast and blinks half as fast there. The demo game and gameplay run at 60 on both. Measured frame by frame from Aaron's videos. Likely cause: on the real board the CPU waits while the blitter uses the shared RAM, and the title screen is already close to the CPU's limit.
+**Found** (fixed in v0.1.10)
+- **The title screen, mode select and zodiac wheel run at 30 updates per second on the PCB,** and at 60 on the core (and MAME). The scrolling text moves and blinks half as fast there. The demo game and gameplay run at 60 on both. Measured frame by frame from Aaron's videos.
 
 ## v0.1.8 — 20261023
 

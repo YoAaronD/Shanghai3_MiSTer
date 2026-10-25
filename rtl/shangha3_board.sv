@@ -285,6 +285,7 @@ module shangha3_board (
     logic [11:0] fb_wdata, fb_rdata;
     logic        fb_copying;
     logic        blit_busy;
+    logic        blit_px_step;
     logic [18:0] blit_scan_from;
     logic [13:0] blit_tm_from;
 
@@ -296,6 +297,7 @@ module shangha3_board (
         .shadow_en (1'b1),             // Shanghai III uses pen-14 shadows
         .hold      (fb_copying),
         .busy      (blit_busy),
+        .px_step   (blit_px_step),
         .scan_from (blit_scan_from),
         .tm_from   (blit_tm_from),
         .ram_addr  (blit_ram_addr),
@@ -482,8 +484,39 @@ module shangha3_board (
     end
     assign ram_we = cpu_cyc && sel_ram && !cpu_rw && !ram_wr_done && !blit_wr_conflict;
 
+    // ------------------------------------------------------------------
+    // Blitter bus hold (v0.1.10), a calibrated model of the real chip's speed.
+    // How the game paces itself (68000 code): the vblank IRQ starts the
+    // blitter only if the main loop has finished its update and is waiting;
+    // early in each update the main loop also waits for vblank (10A42). On
+    // the PCB the title, mode select and zodiac screens run at 30 updates per
+    // second and gameplay and the demo at 60 (Aaron's videos; the mode-select
+    // timeout takes 14.9 s on the PCB and 7.4 s in MAME). That fits the CPU
+    // being stopped for a while after vblank while the real, much slower chip
+    // draws, applied from the end of vblank (the game checks for vblank early
+    // in each update, so the CPU must get through vblank first).
+    // ------------------------------------------------------------------
+    // Hold per destination pixel the blitter processes (transparent ones
+    // included), in 1/16 clock: 110 = 6.875 clocks = 72 ns, i.e. ~14 Mpixel/s.
+    // From the measurements the window is about 5.9 to 7.9 clocks per pixel
+    // (mode select must miss the frame, the busiest demo screen must not).
+    localparam int HOLD_PER_PX_X16 = 110;
+    logic        bus_hold;
+    logic [27:0] hold_acc;                         // pending hold, in 1/16 clock
+    always_ff @(posedge clk) begin
+        if (reset) begin
+            hold_acc <= '0;
+            bus_hold <= 1'b0;
+        end else begin
+            hold_acc <= hold_acc + (blit_px_step ? 28'(HOLD_PER_PX_X16) : 28'd0)
+                                 - ((bus_hold && hold_acc >= 28'd16) ? 28'd16 : 28'd0);
+            bus_hold <= !vblank && (hold_acc >= 28'd16);
+        end
+    end
+
     always_comb begin
-        if (sel_rom)                 ready = prog_ok && wait_cnt >= 4'd2;
+        if (bus_hold && !cpu_iack)   ready = 1'b0;   // CPU off the bus while the blitter "draws"
+        else if (sel_rom)            ready = prog_ok && wait_cnt >= 4'd2;
         // MAME's blitter is instantaneous. Ours first snapshots the command
         // list (and tilemap RAM if used) in ~1% of a frame, then draws from
         // the snapshot. Only CPU writes to words not yet snapshotted wait.

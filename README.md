@@ -39,6 +39,7 @@ Requires an SDRAM module: the game's ROMs are kept in SDRAM. Any size works.
 - **The game tests itself for about 12 seconds after loading**, as the arcade board does: a black screen, then "ROM 1 CHECK OK", "ROM 2 CHECK OK", "VIEW WORK CHECK OK", "COLOR RAM CHECK" and "ADPCM CHECK OK".
 - The **green stripes during COLOR RAM CHECK** are correct. The real board shows them too, because it changes colors mid-frame. (MAME shows solid flashes there.)
 - The attract mode is silent; the music starts in the demo game.
+- **The title screen, mode select and layout wheel run at 30 updates per second, as on the arcade board** (gameplay runs at 60). The real board's graphics chip is slow enough that those busy screens miss every other frame, and the core reproduces that, so menu timeouts and the title's scrolling text match the original.
 
 ## Controls
 
@@ -101,7 +102,6 @@ The arcade board makes its sound with two chips, mixed together on the board. Th
 ## Known differences
 
 - **One frame of display delay** compared with MAME: each new picture appears about 17 ms later. The original board's frame buffering isn't documented. The delay isn't noticeable in play.
-- **The title screen and the zodiac (layout select) wheel animate twice as fast as on the PCB** (60 updates per second instead of 30). Gameplay and the demo match. Being worked on.
 - The video sync positions are estimates; the picture is centered correctly on the CRTs it was tested on. If yours needs it, use CRT Adjust.
 
 ## Building from source

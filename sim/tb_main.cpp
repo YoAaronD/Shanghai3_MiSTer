@@ -26,6 +26,9 @@ int main(int argc, char** argv) {
     int log_from = 0;        // --log-from N: only trace bus cycles from frame N on
     std::string gfx_path, frames_out, oki_path, wav_path;
     int pause_from = -1, pause_len = 0;   // --pause FROM LEN: hold the pause input for LEN frames from frame FROM
+    struct Press { unsigned mask; int from, len; bool sys; };
+    std::vector<Press> presses;           // --press MASK FROM LEN: hold SYSTEM bits (hex mask: 01 coin, 08 start) for LEN frames
+                                          // --pressin MASK FROM LEN: hold INPUTS bits (hex: 0010 P1 button 1, 0001 right ...)
     int every = 30;
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--prog") && i + 1 < argc) prog_path = argv[++i];
@@ -41,6 +44,8 @@ int main(int argc, char** argv) {
         else if (!strcmp(argv[i], "--frames-out") && i + 1 < argc) frames_out = argv[++i];
         else if (!strcmp(argv[i], "--pause") && i + 2 < argc) { pause_from = atoi(argv[++i]); pause_len = atoi(argv[++i]); }
         else if (!strcmp(argv[i], "--every") && i + 1 < argc) every = atoi(argv[++i]);
+        else if (!strcmp(argv[i], "--press") && i + 3 < argc) { Press pr; pr.mask = strtoul(argv[++i], nullptr, 16); pr.from = atoi(argv[++i]); pr.len = atoi(argv[++i]); pr.sys = true; presses.push_back(pr); }
+        else if (!strcmp(argv[i], "--pressin") && i + 3 < argc) { Press pr; pr.mask = strtoul(argv[++i], nullptr, 16); pr.from = atoi(argv[++i]); pr.len = atoi(argv[++i]); pr.sys = false; presses.push_back(pr); }
     }
     if (prog_path.empty()) { fprintf(stderr, "need --prog <file>\n"); return 1; }
 
@@ -186,6 +191,9 @@ int main(int argc, char** argv) {
             frame++;
             if (frame == pause_from) top->pause = 1;
             if (frame == pause_from + pause_len) top->pause = 0;
+            { unsigned held = 0, held_in = 0;
+              for (auto& pr : presses) if (frame >= pr.from && frame < pr.from + pr.len) (pr.sys ? held : held_in) |= pr.mask;
+              top->in_system = 0x7f & ~held; top->in_inputs = 0xffff & ~held_in; }
             fprintf(tr, "%10.2f EV FRAME %d near_pc=%06X blit_busy=%.1f%% cpu_stall=%.1f%%\n", us, frame,
                     last_rom_addr, 100.0 * busy_cycles / (512 * 262 * 12), 100.0 * stall_cycles / (512 * 262 * 12));
             stall_cycles = busy_cycles = 0;

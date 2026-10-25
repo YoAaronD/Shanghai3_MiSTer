@@ -37,6 +37,7 @@ module shangha3_blitter (
     input  logic        shadow_en,    // shangha3 = 1, heberpop/blocken = 0
     input  logic        hold,         // don't start a new list (frame buffer copy running)
     output logic        busy,
+    output logic        px_step,      // one pulse per destination pixel processed (bus-hold model)
     output logic [18:0] scan_from,    // CPU writes at/after this RAM word must wait (list not yet copied)
     output logic [13:0] tm_from,      // CPU writes to tilemap RAM words [tm_from, 0x2000) must wait
 
@@ -293,6 +294,7 @@ module shangha3_blitter (
 
     always_ff @(posedge clk) begin
         fb_we <= 1'b0;
+        px_step <= 1'b0;
 
         if (reset) begin
             state         <= S_IDLE;
@@ -654,7 +656,7 @@ module shangha3_blitter (
                         fb_wdata <= {1'b0, e_color, pen};
                     end
                 end
-                if (!(pen == 4'he && e_shadow)) advance_pixel();
+                if (!(pen == 4'he && e_shadow)) begin advance_pixel(); px_step <= 1'b1; end
             end
 
             S_D_SH1: state <= S_D_SH2;                   // fb_rdata arrives next clock
@@ -664,6 +666,7 @@ module shangha3_blitter (
                 fb_wdata <= shadow_of(fb_rdata);
                 state    <= S_D_PIX;
                 advance_pixel();
+                px_step  <= 1'b1;
             end
 
             default: state <= S_IDLE;

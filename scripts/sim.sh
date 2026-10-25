@@ -5,7 +5,7 @@
 #   scripts/sim.sh game [frames]   real shangha3j program ROM (run romtool.py extract first)
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-OBJ="$ROOT/sim/obj"
+OBJ="${SIM_OBJ:-$ROOT/sim/obj}"
 MODE="${1:-test}"
 FRAMES="${2:-3}"
 

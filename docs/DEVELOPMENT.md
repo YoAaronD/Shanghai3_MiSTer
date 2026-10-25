@@ -196,6 +196,14 @@ Frames are written as `.ppm` images (384 × 224). Most image viewers open them.
 - The clamp table assumes HSync starts at dot 416, a placeholder. If the sync position is changed after measuring the PCB, recompute the table (formula in the file) and re-run the bench.
 - H-Position moves in 6-pixel steps (16 OSD settings cover −48 … +42 pixels), the same layout as the Nostradamus core.
 
+**Frame pacing and the blitter bus hold (v0.1.10)**
+
+- The game paces itself through a flag: at the end of each update the main loop sets 307906 and waits; the vblank IRQ (17E4) starts the blitter, reads the inputs and releases the main loop only if the flag is set. An update that runs past the next vblank waits one more frame, so that screen runs at 30 updates per second. Early in each update the main loop also waits for vblank (10A42). The music driver runs in the IRQ every frame.
+- Measured on the PCB (videos, frame by frame): title, mode select and zodiac wheel at 30; demo and gameplay at 60; mode-select timeout 14.9 s (7.4 s in MAME).
+- Per screen (MAME, `tools/mame/blit_load.lua`): game logic per update 58 % (title), 44 % (mode select), 63 % (zodiac), 17–26 % (demo), 18 % (gameplay) of a frame; pixels per picture 1.4–2.1 screens.
+- Model: the CPU is held, from the end of vblank, for 6.875 clocks per pixel the blitter processes (`HOLD_PER_PX_X16` in `rtl/shangha3_board.sv`). Window from the measurements: 5.9–7.9 clocks per pixel. Holding the CPU from the blitter start instead makes it miss the 10A42 vblank check and drops every screen to 30.
+- Check with `scripts/frame_budget.py TRACE` on a `sim.sh game` trace (`--press 01 1000 6 --press 08 1060 6` coins up and starts; `--pressin 0010 F 10` presses button 1).
+
 **Sound balance (v0.1.6)**
 
 - The attract demo plays the same tune as a game recorded on the real PCB. MAME logged its YM2149/OKI register writes (`tools/mame/snd_regs.lua`); `scripts/snd_replay.sh` replays them through the core's own jt49 + jt6295 + `rtl/shangha3_mixer.sv`, giving the two sources separately.
