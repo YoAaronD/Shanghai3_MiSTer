@@ -9,7 +9,7 @@ A MiSTer FPGA core for **Shanghai III** (Sunsoft, 1993), the arcade mahjong-soli
 - YM2149 music chip
 - OKI M6295 sample chip
 
-It was checked against MAME and against a real Shanghai III PCB: boot, picture, gameplay and sound balance. The core was created with the assistance of AI tooling.
+It was checked against MAME and against an original Shanghai III PCB: boot, picture, gameplay and sound balance. The core was created with the assistance of AI tooling.
 
 **Status: v1.0.0.** Tested on a DE10-Nano with a CRT (15 kHz analog) and with HDMI.
 
