@@ -96,14 +96,8 @@ The arcade board makes its sound with two chips, mixed together on the board. Th
 | Difficulty | Easy, **Normal**, Hard, Hardest |
 | Base Time | 70, **80**, 90, 100 sec |
 | Additional Time | 4, **5**, 6, 7 sec |
-| Demo Sounds | Off, **On** |
+| Demo Sounds | **Off**, On |
 | Flip Screen | **Off**, On |
-
-## Known differences
-
-- **One frame of display delay** compared with MAME: each new picture appears about 17 ms later. The original board's frame buffering isn't documented. The delay isn't noticeable in play.
-- **Game speed** matches the board to within a fraction of a second. Side by side with a PCB through a full game and the attract loop, the core stayed 0.2–1 s behind (busy screens run very slightly slower or faster than on the board), and the gameplay timer ran within 0.4 % of the PCB's.
-- The video sync positions are estimates; the picture is centered correctly on the CRTs it was tested on. If yours needs it, use CRT Adjust.
 
 ## Building from source
 
