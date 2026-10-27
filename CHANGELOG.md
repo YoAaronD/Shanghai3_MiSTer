@@ -21,6 +21,12 @@ First public release.
 - `README.md` is now for players: installing, controls, OSD options, DIP switches, what to expect, credits. Build and simulation notes moved to `docs/DEVELOPMENT.md`.
 - The development notes for AI-assisted sessions moved to a separate private repo; nothing in the core changed.
 - MRA: added `<mameversion>0289</mameversion>`, `<players>2</players>` and a header comment (including which ROM zips a split set needs).
+- MRA comment and README: Demo Sounds stays **On** by default (`<switches default="FF BF">`). A stock PCB, with every switch off, has it Off and plays the attract demo silently; the README says how to match that.
+
+**Verified on hardware** (v0.1.10, side by side with Aaron's PCB from the same coin-up, filmed on one phone)
+- Shadows under the cursor stay steady, as on the PCB (the v0.1.9 fix).
+- Refresh identical: 59.619 Hz (PCB) and 59.618 Hz (core), from the camera's flicker beat.
+- The core stayed 0.2–1 s behind the PCB through a full game, the continue countdown, the ranking and the attract loop. The gap goes up and down rather than accumulating: about +0.2 s over the zodiac wheel, +0.35 s over the 85 s of gameplay (0.4 %), about +0.4 s from the time-over box to the ranking, −0.35 s over the dragon intro, +0.3 s over the attract demo.
 
 **Added**
 - `scripts/make_release.ps1`: copies the Quartus build to `releases/Shanghai3_YYYYMMDD.rbf` and makes a release zip laid out like the MiSTer SD card (`_Arcade/…`). Steps in `docs/DEVELOPMENT.md`.
