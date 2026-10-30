@@ -59,7 +59,7 @@ assign VIDEO_ARY = (!ar) ? (no_rotate ? 12'd3 : 12'd4) : 12'd0;
 
 `include "build_id.v"
 localparam CONF_STR = {
-	"Shanghai3;;",
+	"SunsoftGA9201;;",
 	"-;",
 	"O[122:121],Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",
 	"O[5:3],Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%,CRT 75%;",
@@ -78,8 +78,8 @@ localparam CONF_STR = {
 	"-;",
 	"T[0],Reset;",
 	"R[0],Reset and close OSD;",
-	"J1,Button 1,Button 2,Start,Coin,Service;",
-	"jn,A,B,Start,Select,R;",
+	"J1,Button 1,Button 2,Button 3,Start,Coin,Service;",
+	"jn,A,B,X,Start,Select,R;",
 	"V,v",`BUILD_DATE
 };
 
@@ -146,16 +146,22 @@ end
 always @(posedge clk_sys)
 	if (ioctl_wr && (ioctl_index == 16'd254) && !ioctl_addr[24:1]) sw[ioctl_addr[0]] <= ioctl_dout;
 
+// Game select: the MRA sends one byte at ioctl index 1 (0 = Shanghai III,
+// 1 = Hebereke no Popoon, 2 = Blocken). It arrives before the ROMs.
+reg [1:0] game_id = 2'd0;
+always @(posedge clk_sys)
+	if (ioctl_wr && (ioctl_index == 16'd1) && (ioctl_addr == 27'd0)) game_id <= ioctl_dout[1:0];
+
 //////////////////////////   INPUTS   ////////////////////////////
 // MiSTer joystick bits: 0 right, 1 left, 2 down, 3 up,
 //                       4 button 1, 5 button 2, 6 start, 7 coin, 8 service
 // PCB 200000 (active low): P1 bits 0-5 = right,left,down,up,b1,b2; P2 bits 8-13
 // PCB 200002 (active low): 0 coin1, 1 coin2, 2 service, 3 start1, 4 start2, 5 test
 
-wire [15:0] in_inputs = ~{2'b00, joy2[5:0], 2'b00, joy1[5:0]};
+wire [15:0] in_inputs = ~{1'b0, joy2[6:0], 1'b0, joy1[6:0]};   // bit 6/14: Button 3 (Blocken)
 // SYSTEM (MAME shangha3): 0 coin1, 1 coin2, 2 service1 (service credit), 3 start1, 4 start2,
-// 5 service-mode switch (OSD "Service Mode"). Joystick: 6 Start, 7 Coin, 8 Service.
-wire  [6:0] in_system = ~{1'b0, status[6], joy2[6], joy1[6], joy1[8] | joy2[8], joy2[7], joy1[7]};
+// 5 service-mode switch (OSD "Service Mode"). Joystick: 7 Start, 8 Coin, 9 Service.
+wire  [6:0] in_system = ~{1'b0, status[6], joy2[7], joy1[7], joy1[9] | joy2[9], joy2[8], joy1[8]};
 
 //////////////////////////   CORE   //////////////////////////////
 
@@ -171,7 +177,8 @@ shangha3_top core
 	.reset(reset),
 	.sdram_init(~pll_locked),
 	.pause(OSD_STATUS & ~status[7]),   // freeze the game while the menu is open (option, default On)
-	.snd_balance(status[12:10]),       // OKI (drums/FX) vs YM2149 balance, 0 = PCB
+	.snd_balance(status[12:10]),       // OKI (drums/FX) balance, 0 = PCB
+	.game_id(game_id),
 
 	.ioctl_download(ioctl_download),
 	.ioctl_index(ioctl_index),

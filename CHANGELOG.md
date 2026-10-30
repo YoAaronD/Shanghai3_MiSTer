@@ -13,7 +13,72 @@ Each entry below gives both: version, then date stamp.
 
 ---
 
-## v1.0.0 — release candidate (date set at release)
+## Unreleased — Hebereke no Popoon and Blocken (branch `multigame`, work in progress)
+
+The core becomes a platform core for the Sunsoft GA9201 board family. The MRA
+selects the game with one byte (ioctl index 1): 0 Shanghai III, 1 Hebereke no
+Popoon (`heberpop`), 2 Blocken (`blocken`).
+
+**Changed**
+- **The core is renamed SunsoftGA9201** (was Shanghai3), after the boards' custom
+  graphics chip, since it now runs three games: the Quartus project
+  (`SunsoftGA9201.qpf/.qsf/.sdc/.srf`), the top level `SunsoftGA9201.sv`, the OSD
+  name, the MRAs' `<rbf>`, released files `releases/SunsoftGA9201_YYYYMMDD.rbf`, and
+  `make_release.ps1` (whose zip now carries every MRA). MiSTer keeps settings per
+  core name, so OSD options and button mappings start fresh. The GitHub repo is to
+  be renamed SunsoftGA9201_MiSTer (GitHub redirects the old name).
+- **New ROM layout for every game** (`rtl/shangha3_mem.sv`): program 1 MB, Z80
+  64 KB, graphics 3.5 MB, OKI 512 KB, padded with FF by the MRA. **Shanghai III
+  needs its new MRA** (`releases/Shanghai III (Japan).mra`); the v1.0.0 MRA won't
+  work with this core.
+- Controls: a third button (Blocken). The core's button list is now Button 1,
+  Button 2, Button 3, Start, Coin, Service, so saved MiSTer button mappings for
+  this core need redoing.
+
+**Added**
+- `rtl/ga9201_sound.sv`: the heberpop/blocken sound CPU section: Z80 (tv80 with a
+  clock enable, `rtl/tv80_cen.v`, 6 MHz), 2 KB RAM, YM3438 (jt12, 8 MHz), sound
+  latch; IM 0 interrupts with FF (RST 38h) on the bus, NMI from the YM3438. The
+  Z80 program comes from SDRAM (ch3, idle after the download) through a 2 KB cache.
+- `rtl/ga9201_mixer.sv`: YM3438 + OKI mix at MAME's balance and level, measured
+  (`scripts/snd2_replay.sh` + `scripts/mix_fit.py`: 0.297 × (FM L + R) + 15.8 × OKI,
+  5.6 % residual, loudness within 0.3 dB of MAME), with the same OSD balance option.
+- Board (`rtl/shangha3_board.sv`): per-game address decode (Blocken's I/O page at
+  1000xx and palette at 200000), 16-bit DSW port, sound latch, vblank on INPUTS
+  bits 7/15, OKI ROM banking from the coin-control write (heberpop: 256 KB halves;
+  blocken: 4 × 128 KB banks above a fixed 128 KB), 68000 reads of the graphics ROM
+  at 800000–B7FFFF (byte-swapped from SDRAM), no pen-14 shadows.
+- The blitter bus-hold speed model (v0.1.10) applies to Shanghai III only, where
+  it was measured on a PCB. On Hebereke no Popoon it halved the attract mode's
+  speed against MAME; without a PCB to check, the new games run at MAME's speed.
+- Blitter: tile numbers wrap at 28,672 (3.5 MB) on the new games, as MAME's
+  `code % total`.
+- MRAs for all three games; `scripts/mra_stream.py` builds the download stream
+  from an MRA, so `scripts/sim_top.sh MRA ROMDIR N` now tests the MRA too.
+- Tests: `scripts/snd_z80_test.sh` (Z80 section: latch interrupts, YM3438 timer
+  NMIs, RAM), `scripts/snd2_replay.sh` (MAME sound log through jt12 + jt6295 +
+  mixer), `scripts/mix_fit.py`, `scripts/stream_split.py`; `oki_test.sh` plays
+  both banks of a 512 KB OKI ROM.
+
+**Verified so far (simulation)**
+- Shanghai III unchanged: 900 frames of the board simulation give identical frames
+  and an identical CPU write trace to v1.0.0; the end-to-end download → SDRAM →
+  boot simulation with the new MRA checks every SDRAM byte; `sim.sh test`,
+  `blit_test.sh 50 20` and `oki_test.sh --no-stress --max 8` pass.
+- Hebereke no Popoon:
+  - boots through all self-tests (ROM 1–2, VIEW WORK, COLOR RAM, CG ROM 1–4,
+    which also checks the 68000's graphics-ROM reads) and runs its attract mode;
+    attract frames are pixel-identical to MAME (lag 9 frames: boot timing plus
+    the core's one-frame display delay) through the title and logo animation;
+  - coin, start, mode select, world map, story scene and gameplay (the CPU
+    opponent playing) all work with simulated inputs;
+  - Z80 I/O writes identical to MAME's (first 4,642 in the board simulation, first
+    318 through the full download/SDRAM path);
+  - OKI through SDRAM sample-exact on both 256 KB banks with background traffic.
+- Blocken: not yet run (needs ROMs).
+- No Quartus build yet.
+
+## v1.0.0 — 20261026
 
 First public release.
 
@@ -25,6 +90,7 @@ First public release.
 
 **Verified on hardware** (v0.1.10, side by side with Aaron's PCB from the same coin-up, filmed on one phone)
 - Shadows under the cursor stay steady, as on the PCB (the v0.1.9 fix).
+- The OKI (drums/FX) option works at every setting, and PCB sounds as before.
 - Refresh identical: 59.619 Hz (PCB) and 59.618 Hz (core), from the camera's flicker beat.
 - The core stayed 0.2–1 s behind the PCB through a full game, the continue countdown, the ranking and the attract loop. The gap goes up and down rather than accumulating: about +0.2 s over the zodiac wheel, +0.35 s over the 85 s of gameplay (0.4 %), about +0.4 s from the time-over box to the ranking, −0.35 s over the dragon intro, +0.3 s over the attract demo.
 

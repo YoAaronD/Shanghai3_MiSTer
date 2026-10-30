@@ -1,26 +1,26 @@
-# Shanghai III MiSTer core: development notes
+# GA9201 MiSTer core (Shanghai III, Hebereke no Popoon, Blocken): development notes
 
 How to build the core, run the simulations, and how it was verified. For installing and playing, see the [README](../README.md); for what changed in each version, [CHANGELOG.md](../CHANGELOG.md).
 
 ## Building the core (Quartus)
 
 1. Install **Quartus Prime Lite Edition 17.0.2** with Cyclone V device support. It's free from Intel; the Lite edition needs no license. Newer Quartus versions also work for many MiSTer cores, but 17.0 is the MiSTer standard.
-2. Clone or download this repo somewhere with **no spaces in the path**, for example `C:\cores\Shanghai3_MiSTer`.
-3. In Quartus: **File > Open Project**, choose `Shanghai3.qpf`.
+2. Clone or download this repo somewhere with **no spaces in the path**, for example `C:\cores\SunsoftGA9201_MiSTer`.
+3. In Quartus: **File > Open Project**, choose `SunsoftGA9201.qpf`.
 4. **Processing > Start Compilation**. A full build takes roughly 15–40 minutes.
-5. The result is `output_files/Shanghai3.rbf`.
+5. The result is `output_files/SunsoftGA9201.rbf`.
 
 After each build, `scripts/quartus/post_flow.tcl` writes `output_files/timing_paths.txt`, listing any failing timing paths. Check that the 96 MHz clock (`emu|pll…divclk`) has positive setup slack in the Timing Analyzer's Setup Summary; block RAM use is under Compilation Report → Fitter → Summary ("Total RAM Blocks", 520 of 553 in v0.1.7).
 
-To install a build, rename it `Shanghai3_YYYYMMDD.rbf` and follow the installation steps in the README.
+To install a build, rename it `SunsoftGA9201_YYYYMMDD.rbf` and follow the installation steps in the README.
 
 ## Making a release
 
 1. Build in Quartus and check the timing (above).
 2. In PowerShell, from the repo folder:
    `powershell -ExecutionPolicy Bypass -File scripts\make_release.ps1 -Date YYYYMMDD` (the date defaults to today; use the build date).
-   - It copies `output_files\Shanghai3.rbf` to `releases\Shanghai3_YYYYMMDD.rbf`. Commit that file.
-   - It writes `output_files\Shanghai3_MiSTer_YYYYMMDD.zip`, laid out like the SD card (`_Arcade/Shanghai III (Japan).mra`, `_Arcade/cores/Shanghai3_YYYYMMDD.rbf`).
+   - It copies `output_files\SunsoftGA9201.rbf` to `releases\SunsoftGA9201_YYYYMMDD.rbf`. Commit that file.
+   - It writes `output_files\SunsoftGA9201_MiSTer_YYYYMMDD.zip`, laid out like the SD card (every `.mra` from `releases/` in `_Arcade/`, `_Arcade/cores/SunsoftGA9201_YYYYMMDD.rbf`).
 3. Add an entry to `CHANGELOG.md`, commit, and tag the version (`vX.Y.Z`).
 4. On GitHub: Releases → Draft a new release → choose the tag, paste the changelog entry, attach the zip.
 
@@ -44,15 +44,30 @@ To install a build, rename it `Shanghai3_YYYYMMDD.rbf` and follow the installati
 | Sound mix | YM2149 + OKI | Balance measured against a recording of the PCB (v0.1.6), trimmed by ear (v0.1.7) |
 | MiSTer wrapper | Video out, controls, ROM loading, MRA, pause, HDMI rotation, CRT Adjust | Done; tested on hardware |
 
+**Hebereke no Popoon and Blocken** (MAME `heberpop`, `blocken`; same 68000, blitter, video and OKI) differ in:
+
+| Part | Detail | Status |
+|---|---|---|
+| Game select | One byte from the MRA (ioctl index 1): 0 shangha3j, 1 heberpop, 2 blocken | Done (`SunsoftGA9201.sv`) |
+| Memory map | Program up to 1 MB; blocken: I/O page 1000xx, palette 200000; DSW as a 16-bit port at ..04; sound latch at ..0F; 68000 reads the graphics ROM at 800000–B7FFFF | Done (`shangha3_board.sv`) |
+| Inputs | vblank on INPUTS bits 7/15; Button 3 (blocken) on bits 6/14 | Done |
+| Sound CPU | Z80 6 MHz, 2 KB RAM, ROM from SDRAM via a 2 KB cache, IM 0 (RST 38h), NMI from the YM3438 | Done (`ga9201_sound.sv`, tv80) |
+| FM | YM3438 8 MHz | Done (jt12) |
+| OKI banking | Selected by the 68000's coin-control write | Done |
+| Graphics ROM | 3.5 MB, tile codes wrap at 28,672 | Done |
+| Blocken zoom/rotation | MAME's zoom is wrong for Blocken and rotation isn't emulated | As MAME (no reference) |
+| Mix | YM3438 + OKI at MAME's measured balance and level | Done (`ga9201_mixer.sv`) |
+| Speed | The Shanghai III blitter bus-hold model is off (MAME speed) | Needs a PCB to check |
+
 ## Folder layout
 
 ```
-Shanghai3.qpf/.qsf/.sdc   Quartus project (open Shanghai3.qpf)
-Shanghai3.sv              MiSTer top level (menu, inputs, DIPs, video, audio)
+SunsoftGA9201.qpf/.qsf/.sdc  Quartus project (open SunsoftGA9201.qpf; Shanghai3.* until v1.0.0)
+SunsoftGA9201.sv          MiSTer top level (menu, inputs, DIPs, video, audio)
 files.qip                 list of source files for Quartus
 sys/                      MiSTer framework (from the MiSTer Template)
 rtl/                      the core: board, blitter, video, ROM storage, SDRAM controller, PLL
-releases/                 MRA file and released cores (Shanghai3_YYYYMMDD.rbf)
+releases/                 MRA files and released cores (SunsoftGA9201_YYYYMMDD.rbf; Shanghai3_YYYYMMDD.rbf before v1.1.0)
 sim/                      Verilator testbenches, reference model, simulation output
 scripts/                  build/sim/ROM helper scripts
 docs/                     this file, the MAME driver (for reading), images
@@ -71,7 +86,12 @@ scripts/sim.sh test       # boots the 68000 on a small test program and checks r
 scripts/blit_test.sh      # HDL blitter vs software blitter, pixel-for-pixel (needs ROMs, see below)
 scripts/crt_test.sh       # CRT Adjust: every H-Size at both H-Position extremes + V-Shift (~3 min)
 scripts/oki_test.sh       # OKI samples via download -> SDRAM vs. direct ROM, all 56 phrases (~20 min; --max N for less)
-scripts/sim_top.sh ROMDIR N   # end to end: MiSTer download -> SDRAM model -> boot -> DDR3 model
+scripts/sim_top.sh MRA ROMDIR N   # end to end: the MRA's download stream -> SDRAM model -> boot -> DDR3 model
+scripts/snd_z80_test.sh   # heberpop/blocken sound CPU section with a hand-assembled Z80 program (~1 min)
+scripts/snd2_replay.sh LOG OKIROM GAME OUT.raw [OUT.wav]   # MAME's Z80 sound log through jt12 + jt6295 + mixer
+scripts/mix_fit.py MAME.wav OUT.raw [T0 T1]   # fit MAME's output as a*FM + b*OKI (sets ga9201_mixer's levels)
+scripts/mra_stream.py MRA ROMDIR OUT.bin      # the download stream an MRA produces (CRC-checked)
+scripts/stream_split.py STREAM DIR            # -> prog.bin, z80.bin, blitter.bin, oki.bin for sim.sh game
 scripts/snd_replay.sh LOG OUT.raw [OUT.wav]   # sound only: YM2149/OKI register log through jt49 + jt6295 + mixer
 scripts/osd_test.sh       # the MiSTer OSD's info box (sys/osd.v) over the core's video, CRT Adjust off and on
 ```
@@ -79,6 +99,8 @@ scripts/osd_test.sh       # the MiSTer OSD's info box (sys/osd.v) over the core'
 MAME comparisons: `scripts/build_mame.sh` builds a headless MAME with only this driver; `tools/mame/frame_log.lua` captures every frame and blitter start, `scripts/mame_latency.py` compares frame timing and pixels, and `tools/mame/snd_regs.lua` logs every sound-chip write for `snd_replay.sh`.
 
 Expected output ends with `0 failure(s)`. The test checks reset, RAM, palette writes, the protection sequence, the input ports, DIP reads through the YM2149, the blitter registers, and one vblank interrupt per frame.
+
+For Hebereke no Popoon or Blocken: `scripts/mra_stream.py "releases/<game>.mra" ROMDIR s.bin`, `scripts/stream_split.py s.bin DIR`, then `SIM_ROMS=DIR scripts/sim.sh game N --game 1` (or `--game 2`). The trace then also logs `LATCH` and `Z80IO` events; `tools/mame/sound_log.lua` gives MAME's for comparison. Hebereke no Popoon takes about 25 s (1,500 frames) of self-test before its attract mode, about 4 s of simulation per frame.
 
 ### With the real game program
 
@@ -168,7 +190,7 @@ Frames are written as `.ppm` images (384 × 224). Most image viewers open them.
   - 400 frames of boot from SDRAM match the reference frames.
   - "ROM 2 CHECK OK" appears 5 frames later than with the direct ROM port. The boot ROM checksum reads the whole program ROM as data, which misses the CPU cache every 4th word. Normal game code runs from the cache.
 - Audio (full board, 32 s): attract mode is silent by design (the game writes YM2149 register 7 = 0x3F, all channels off). The demo game turns on YM2149 music (register 7 = 0x38) and OKI effects. The output peaks at 18% of full scale with no clipping. The game now sends OKI "stop" commands because it sees real channel-busy bits; the reference model's OKI stub always reported idle.
-- Timing: `Shanghai3.sdc` relaxes paths inside fx68k to 3 clocks, because its registers only update on phase enables, every 3rd clock. Two blitter multiplies were narrowed to single DSP blocks. All blitter tests are still pixel-exact.
+- Timing: `SunsoftGA9201.sdc` (`Shanghai3.sdc` then) relaxes paths inside fx68k to 3 clocks, because its registers only update on phase enables, every 3rd clock. Two blitter multiplies were narrowed to single DSP blocks. All blitter tests are still pixel-exact.
 
 **OKI samples through SDRAM (`scripts/oki_test.sh`)**
 
@@ -185,7 +207,7 @@ Frames are written as `.ppm` images (384 × 224). Most image viewers open them.
   - HPOS_SYNCSHIFT, with an H-Position clamp table derived for this raster;
   - true bypass when Off;
   - automatic disable while the scandoubler is on.
-- Placed in front of `arcade_video` in `Shanghai3.sv`. OSD page "CRT Adjust" (status bits 96, 101–108, 112–116).
+- Placed in front of `arcade_video` in `SunsoftGA9201.sv` (`Shanghai3.sv` then). OSD page "CRT Adjust" (status bits 96, 101–108, 112–116).
 - `scripts/crt_test.sh` checks every H-Size at both H-Position extremes, plus V-Shift:
   - constant 6144-clock line period;
   - 262 lines and 38 blank lines per frame;

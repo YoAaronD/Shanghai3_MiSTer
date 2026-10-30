@@ -19,6 +19,7 @@ incremental_db/
 output_files/
 greybox_tmp/
 *.qws
+c5_pin_model_dump.txt
 *.rpt
 *.summary
 *.done
@@ -26,4 +27,3 @@ greybox_tmp/
 *.jdi
 *.sld
 build_id.v
-c5_pin_model_dump.txt

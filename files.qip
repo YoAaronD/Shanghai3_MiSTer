@@ -1,6 +1,6 @@
 # Shanghai III core files (paths relative to the project directory)
-set_global_assignment -name SDC_FILE Shanghai3.sdc
-set_global_assignment -name SYSTEMVERILOG_FILE Shanghai3.sv
+set_global_assignment -name SDC_FILE SunsoftGA9201.sdc
+set_global_assignment -name SYSTEMVERILOG_FILE SunsoftGA9201.sv
 
 # reused open-source cores
 set_global_assignment -name SYSTEMVERILOG_FILE ext/fx68k/fx68k.sv
@@ -21,6 +21,47 @@ set_global_assignment -name VERILOG_FILE ext/jt6295/hdl/jt6295_ctrl.v
 set_global_assignment -name VERILOG_FILE ext/jt6295/hdl/jt6295_rom.v
 set_global_assignment -name VERILOG_FILE ext/jt6295/hdl/jt6295_serial.v
 set_global_assignment -name VERILOG_FILE ext/jt6295/hdl/jt6295_sh_rst.v
+set_global_assignment -name VERILOG_FILE ext/jt12/hdl/jt12.v
+set_global_assignment -name VERILOG_FILE ext/jt12/hdl/jt12_top.v
+set_global_assignment -name VERILOG_FILE ext/jt12/hdl/jt12_acc.v
+set_global_assignment -name VERILOG_FILE ext/jt12/hdl/jt12_single_acc.v
+set_global_assignment -name VERILOG_FILE ext/jt12/hdl/jt12_eg.v
+set_global_assignment -name VERILOG_FILE ext/jt12/hdl/jt12_eg_cnt.v
+set_global_assignment -name VERILOG_FILE ext/jt12/hdl/jt12_eg_comb.v
+set_global_assignment -name VERILOG_FILE ext/jt12/hdl/jt12_eg_step.v
+set_global_assignment -name VERILOG_FILE ext/jt12/hdl/jt12_eg_pure.v
+set_global_assignment -name VERILOG_FILE ext/jt12/hdl/jt12_eg_final.v
+set_global_assignment -name VERILOG_FILE ext/jt12/hdl/jt12_eg_ctrl.v
+set_global_assignment -name VERILOG_FILE ext/jt12/hdl/jt12_exprom.v
+set_global_assignment -name VERILOG_FILE ext/jt12/hdl/jt12_kon.v
+set_global_assignment -name VERILOG_FILE ext/jt12/hdl/jt12_lfo.v
+set_global_assignment -name VERILOG_FILE ext/jt12/hdl/jt12_div.v
+set_global_assignment -name VERILOG_FILE ext/jt12/hdl/jt12_mod.v
+set_global_assignment -name VERILOG_FILE ext/jt12/hdl/jt12_op.v
+set_global_assignment -name VERILOG_FILE ext/jt12/hdl/jt12_csr.v
+set_global_assignment -name VERILOG_FILE ext/jt12/hdl/jt12_pg.v
+set_global_assignment -name VERILOG_FILE ext/jt12/hdl/jt12_pg_inc.v
+set_global_assignment -name VERILOG_FILE ext/jt12/hdl/jt12_pg_dt.v
+set_global_assignment -name VERILOG_FILE ext/jt12/hdl/jt12_pg_sum.v
+set_global_assignment -name VERILOG_FILE ext/jt12/hdl/jt12_pg_comb.v
+set_global_assignment -name VERILOG_FILE ext/jt12/hdl/jt12_pm.v
+set_global_assignment -name VERILOG_FILE ext/jt12/hdl/jt12_logsin.v
+set_global_assignment -name VERILOG_FILE ext/jt12/hdl/jt12_reg.v
+set_global_assignment -name VERILOG_FILE ext/jt12/hdl/jt12_reg_ch.v
+set_global_assignment -name VERILOG_FILE ext/jt12/hdl/jt12_sh.v
+set_global_assignment -name VERILOG_FILE ext/jt12/hdl/jt12_sh_rst.v
+set_global_assignment -name VERILOG_FILE ext/jt12/hdl/jt12_sh24.v
+set_global_assignment -name VERILOG_FILE ext/jt12/hdl/jt12_sumch.v
+set_global_assignment -name VERILOG_FILE ext/jt12/hdl/jt12_timers.v
+set_global_assignment -name VERILOG_FILE ext/jt12/hdl/jt12_pcm_interpol.v
+set_global_assignment -name VERILOG_FILE ext/jt12/hdl/jt12_mmr.v
+set_global_assignment -name VERILOG_FILE ext/jt12/hdl/jt12_dout.v
+set_global_assignment -name VERILOG_FILE ext/jt12/hdl/jt12_rst.v
+set_global_assignment -name VERILOG_FILE ext/jt12/hdl/adpcm/jt10_adpcm_div.v
+set_global_assignment -name VERILOG_FILE ext/tv80/tv80_core.v
+set_global_assignment -name VERILOG_FILE ext/tv80/tv80_alu.v
+set_global_assignment -name VERILOG_FILE ext/tv80/tv80_mcode.v
+set_global_assignment -name VERILOG_FILE ext/tv80/tv80_reg.v
 
 # this core
 set_global_assignment -name QIP_FILE rtl/pll.qip
@@ -29,6 +70,9 @@ set_global_assignment -name SYSTEMVERILOG_FILE rtl/shangha3_video_timing.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/shangha3_blitter.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/shangha3_video.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/shangha3_mixer.sv
+set_global_assignment -name VERILOG_FILE rtl/tv80_cen.v
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/ga9201_sound.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/ga9201_mixer.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/shangha3_board.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/shangha3_mem.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/shangha3_ddr_arb.sv

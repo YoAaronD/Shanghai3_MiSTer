@@ -22,9 +22,11 @@ int main(int argc, char** argv) {
     std::string prog_path, trace_path = "trace.txt";
     int frames = 3;
     unsigned dsw1 = 0xff, dsw2 = 0xbf;   // MAME defaults (DSW2 bit 6 = 0: demo sounds on)
+    bool dsw_given = false;
     bool log_rom = true;     // --no-rom-log: skip program ROM reads (opcode fetches) in the trace
     int log_from = 0;        // --log-from N: only trace bus cycles from frame N on
-    std::string gfx_path, frames_out, oki_path, wav_path;
+    std::string gfx_path, frames_out, oki_path, wav_path, z80_path;
+    int game = 0;            // --game N: 0 shangha3j, 1 heberpop, 2 blocken
     int pause_from = -1, pause_len = 0;   // --pause FROM LEN: hold the pause input for LEN frames from frame FROM
     struct Press { unsigned mask; int from, len; bool sys; };
     std::vector<Press> presses;           // --press MASK FROM LEN: hold SYSTEM bits (hex mask: 01 coin, 08 start) for LEN frames
@@ -34,11 +36,13 @@ int main(int argc, char** argv) {
         if (!strcmp(argv[i], "--prog") && i + 1 < argc) prog_path = argv[++i];
         else if (!strcmp(argv[i], "--frames") && i + 1 < argc) frames = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--trace") && i + 1 < argc) trace_path = argv[++i];
-        else if (!strcmp(argv[i], "--dsw1") && i + 1 < argc) dsw1 = strtoul(argv[++i], nullptr, 16);
-        else if (!strcmp(argv[i], "--dsw2") && i + 1 < argc) dsw2 = strtoul(argv[++i], nullptr, 16);
+        else if (!strcmp(argv[i], "--dsw1") && i + 1 < argc) { dsw1 = strtoul(argv[++i], nullptr, 16); dsw_given = true; }
+        else if (!strcmp(argv[i], "--dsw2") && i + 1 < argc) { dsw2 = strtoul(argv[++i], nullptr, 16); dsw_given = true; }
         else if (!strcmp(argv[i], "--no-rom-log")) log_rom = false;
         else if (!strcmp(argv[i], "--log-from") && i + 1 < argc) log_from = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--gfx") && i + 1 < argc) gfx_path = argv[++i];
+        else if (!strcmp(argv[i], "--z80") && i + 1 < argc) z80_path = argv[++i];
+        else if (!strcmp(argv[i], "--game") && i + 1 < argc) game = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--oki") && i + 1 < argc) oki_path = argv[++i];
         else if (!strcmp(argv[i], "--wav") && i + 1 < argc) wav_path = argv[++i];
         else if (!strcmp(argv[i], "--frames-out") && i + 1 < argc) frames_out = argv[++i];
@@ -49,14 +53,22 @@ int main(int argc, char** argv) {
     }
     if (prog_path.empty()) { fprintf(stderr, "need --prog <file>\n"); return 1; }
 
-    std::vector<uint8_t> rom(0x80000, 0xff);
+    std::vector<uint8_t> rom(0x100000, 0xff);   // up to 1 MB, big-endian words (FF beyond the file)
     FILE* f = fopen(prog_path.c_str(), "rb");
     if (!f) { perror(prog_path.c_str()); return 1; }
     size_t n = fread(rom.data(), 1, rom.size(), f);
     fclose(f);
     printf("loaded %zu bytes of program ROM\n", n);
 
-    std::vector<uint8_t> gfx(0x200000, 0xff);
+    std::vector<uint8_t> z80rom(0x10000, 0xff);
+    if (!z80_path.empty()) {
+        FILE* g = fopen(z80_path.c_str(), "rb");
+        if (!g) { perror(z80_path.c_str()); return 1; }
+        size_t zn = fread(z80rom.data(), 1, z80rom.size(), g);
+        fclose(g);
+        printf("loaded %zu bytes of Z80 program ROM\n", zn);
+    }
+    std::vector<uint8_t> gfx(0x380000, 0xff);   // 3.5 MB (shangha3 uses the first 2 MB)
     if (!gfx_path.empty()) {
         FILE* g = fopen(gfx_path.c_str(), "rb");
         if (!g) { perror(gfx_path.c_str()); return 1; }
@@ -64,7 +76,7 @@ int main(int argc, char** argv) {
         fclose(g);
         printf("loaded %zu bytes of graphics ROM\n", gn);
     }
-    std::vector<uint8_t> okirom(0x40000, 0x00);
+    std::vector<uint8_t> okirom(0x80000, 0x00);
     if (!oki_path.empty()) {
         FILE* g = fopen(oki_path.c_str(), "rb");
         if (!g) { perror(oki_path.c_str()); return 1; }
@@ -82,7 +94,11 @@ int main(int argc, char** argv) {
     FILE* tr = fopen(trace_path.c_str(), "w");
     if (!tr) { perror(trace_path.c_str()); return 1; }
 
+    // heberpop/blocken: MAME's DSW defaults unless given (FFFF / FFBF)
+    if (game == 1 && !dsw_given) { dsw1 = 0xff; dsw2 = 0xff; }
+    if (game == 2 && !dsw_given) { dsw1 = 0xbf; dsw2 = 0xff; }
     auto* top = new Vshangha3_board;
+    top->game_id = game;
     top->in_inputs = 0xffff;
     top->in_system = 0x7f;
     top->dsw1 = dsw1;
@@ -95,7 +111,7 @@ int main(int argc, char** argv) {
     unsigned prev_gfxlist = 0, prev_flip = 0, prev_coin = 0, prev_busy = 0;
     uint64_t stall_cycles = 0, busy_cycles = 0;
     unsigned last_rom_addr = 0;
-    long reads = 0, writes = 0, irqs = 0, blits = 0;
+    long reads = 0, writes = 0, irqs = 0, blits = 0, z80io = 0;
 
     DdrModel ddr;
     for (int i = 1; i < argc; i++) if (!strcmp(argv[i], "--ddr-easy")) ddr.stress = false;
@@ -112,7 +128,10 @@ int main(int argc, char** argv) {
             if (gfx_count < 0) gfx_count = 8;
             else if (--gfx_count == 0) {
                 uint64_t v = 0;
-                for (int k = 7; k >= 0; k--) v = (v << 8) | gfx[((uint64_t)gfx_addr * 8 + k) & 0x1fffff];
+                for (int k = 7; k >= 0; k--) {
+                    uint64_t a = (uint64_t)gfx_addr * 8 + k;
+                    v = (v << 8) | (a < gfx.size() ? gfx[a] : 0xff);
+                }
                 top->gfx_data = v;
                 top->gfx_ack = 1;
                 gfx_count = -1;
@@ -124,7 +143,7 @@ int main(int argc, char** argv) {
             oki_wait = 2;
             top->oki_rom_ok = 0;
         } else if (oki_wait > 0 && --oki_wait == 0) {
-            top->oki_rom_data = okirom[oki_last_addr & 0x3ffff];
+            top->oki_rom_data = okirom[oki_last_addr & 0x7ffff];
             top->oki_rom_ok = 1;
         }
         if (!wav_path.empty() && cycle % 2000 == 0) audio.push_back((int16_t)top->snd);
@@ -143,9 +162,19 @@ int main(int argc, char** argv) {
         }
         prev_ce = top->ce_pix;
         // ROM model: data available the clock after cs, like a fast SDRAM port
-        top->prog_data = (rom[(top->prog_addr << 1) & 0x7ffff] << 8) |
-                          rom[((top->prog_addr << 1) | 1) & 0x7ffff];
+        // prog_addr is the SDRAM word address: program at 000000, graphics ROM at 110000
+        {
+            uint32_t b = (uint32_t)top->prog_addr << 1;
+            if (b >= 0x110000) {
+                uint32_t o = b - 0x110000;
+                top->prog_data = ((o < gfx.size() ? gfx[o] : 0xff) << 8) | (o + 1 < gfx.size() ? gfx[o + 1] : 0xff);
+            } else {
+                top->prog_data = (rom[b & 0xfffff] << 8) | rom[(b | 1) & 0xfffff];
+            }
+        }
         top->prog_ok = top->prog_cs;
+        top->z80_rom_data = z80rom[top->z80_rom_addr];
+        top->z80_rom_ok = top->z80_rom_cs;
     };
 
     top->reset = 1;
@@ -183,6 +212,8 @@ int main(int argc, char** argv) {
         }
         if (top->dbg_irq_ack) { fprintf(tr, "%10.2f EV IRQ_ACK\n", us); irqs++; }
         if (top->dbg_oki_wr)  fprintf(tr, "%10.2f EV OKI_WRITE %02X\n", us, top->dbg_oki_data);
+        if (top->dbg_latch_wr) fprintf(tr, "%10.2f EV LATCH %02X\n", us, top->dbg_cpu_dout & 0xff);
+        if (top->dbg_z80_io_wr) { fprintf(tr, "%10.2f EV Z80IO %02X %02X\n", us, top->dbg_z80_io_addr, top->dbg_z80_io_data); z80io++; }
         if (top->dbg_gfxlist != prev_gfxlist) { fprintf(tr, "%10.2f EV GFXLIST %04X\n", us, top->dbg_gfxlist); prev_gfxlist = top->dbg_gfxlist; }
         if (top->dbg_flip != prev_flip) { fprintf(tr, "%10.2f EV FLIP %d\n", us, top->dbg_flip); prev_flip = top->dbg_flip; }
         if (top->dbg_coinctrl != prev_coin) { fprintf(tr, "%10.2f EV COINCTRL %02X\n", us, top->dbg_coinctrl); prev_coin = top->dbg_coinctrl; }
@@ -227,8 +258,8 @@ int main(int argc, char** argv) {
     printf("DDR3 frame buffer: %ld words written, %ld read, %ld bad addresses\n", ddr.words_written, ddr.words_read, ddr.errors);
     printf("ran %d frames, %llu clocks (%.1f ms emulated)\n", frame,
            (unsigned long long)cycle, cycle / 96000.0);
-    printf("bus: %ld reads, %ld writes, %ld irq acks, %ld blitter starts\n",
-           reads, writes, irqs, blits);
+    printf("bus: %ld reads, %ld writes, %ld irq acks, %ld blitter starts, %ld Z80 I/O writes\n",
+           reads, writes, irqs, blits, z80io);
     top->final();
     delete top;
     return 0;

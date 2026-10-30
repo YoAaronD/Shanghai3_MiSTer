@@ -1,4 +1,4 @@
-// OSD bench top: the core's video timing -> CRT Adjust (as in Shanghai3.sv)
+// OSD bench top: the core's video timing -> CRT Adjust (as in SunsoftGA9201.sv)
 // -> the MiSTer framework's own sys/osd.v, with the HPS side driven by
 // osd_tb.cpp the way Main_MiSTer draws its "Loading" info box.
 // Approximates arcade_video (Scandoubler Fx None) as DE = !(HBlank | VBlank).

@@ -1,4 +1,8 @@
-// Shanghai III (Sunsoft, 1993) - board top level
+// Sunsoft GA9201 board - top level, for three games selected by game_id:
+//   0 Shanghai III (1993, SUN04C)        68000, YM2149, OKI M6295 on the 68000 bus
+//   1 Hebereke no Popoon (1994, SUN-06)  68000 + Z80 sound CPU, YM3438, OKI (banked)
+//   2 Blocken (1994, KID-07)             as heberpop, with a moved I/O page,
+//                                        a third button and a 4-bank OKI ROM
 //
 // Behavioural reference: MAME src/mame/sunelectronics/shangha3.cpp
 // (BSD-3-Clause, Nicola Salmoria). No MAME code is included here.
@@ -20,21 +24,30 @@
 module shangha3_board (
     input  logic        clk,          // 96 MHz
     input  logic        reset,
+    input  logic [1:0]  game_id,      // 0 shangha3j, 1 heberpop, 2 blocken (from the MRA)
     input  logic        vid_reset,    // video timing + display path: power-up only, so sync never stops
     input  logic        pause,        // freeze CPU and sound (OSD open); video keeps running
     input  logic [2:0]  snd_balance,  // OSD OKI vs YM2149 balance (0 = PCB), see shangha3_mixer.sv
 
-    // program ROM (512 KB, 16-bit, big-endian words)
-    output logic [18:1] prog_addr,
+    // 68000 ROM reads, as an SDRAM word address (see shangha3_mem.sv):
+    // program (up to 1 MB) at 000000, graphics ROM (heberpop/blocken read it
+    // at 800000-B7FFFF) at 110000
+    output logic [22:1] prog_addr,
     output logic        prog_cs,
     input  logic [15:0] prog_data,
     input  logic        prog_ok,
 
+    // Z80 program ROM (heberpop/blocken)
+    output logic [15:0] z80_rom_addr,
+    output logic        z80_rom_cs,
+    input  logic [7:0]  z80_rom_data,
+    input  logic        z80_rom_ok,
+
     // controls, all active low as on the PCB
-    input  logic [15:0] in_inputs,    // 0x200000: P1 in [7:0], P2 in [15:8]
-    input  logic [6:0]  in_system,    // 0x200002 bits 6..0 (bit 7 = vblank, added here)
-    input  logic [7:0]  dsw1,         // YM2149 port A
-    input  logic [7:0]  dsw2,         // YM2149 port B
+    input  logic [15:0] in_inputs,    // INPUTS: P1 [5:0] R,L,D,U,B1,B2, [6] B3; P2 [13:8], [14] B3 (bits 7/15 set here)
+    input  logic [6:0]  in_system,    // SYSTEM bits 6..0 (shangha3 bit 7 = vblank, added here)
+    input  logic [7:0]  dsw1,         // SW1: shangha3 YM2149 port A; heberpop/blocken DSW low byte
+    input  logic [7:0]  dsw2,         // SW2: shangha3 YM2149 port B; heberpop/blocken DSW high byte
 
     // video
     output logic        ce_pix,
@@ -47,9 +60,9 @@ module shangha3_board (
     output logic [7:0]  green,
     output logic [7:0]  blue,
 
-    // graphics ROM (2 MB) for the blitter: one 8-byte tile row per request
+    // graphics ROM (2 MB / 3.5 MB) for the blitter: one 8-byte tile row per request
     output logic        gfx_req,
-    output logic [17:0] gfx_addr,
+    output logic [18:0] gfx_addr,
     input  logic        gfx_ack,
     input  logic [63:0] gfx_data,
 
@@ -69,8 +82,9 @@ module shangha3_board (
     output logic signed [13:0] oki_snd,   // OKI M6295 raw (signed)
     output logic signed [15:0] snd,       // mixed, signed 16-bit
 
-    // OKI sample ROM (256 KB): rom_ok must be high only when rom_data matches oki_rom_addr
-    output logic [17:0] oki_rom_addr,
+    // OKI sample ROM (up to 512 KB, after the bank logic): rom_ok must be
+    // high only when rom_data matches oki_rom_addr
+    output logic [18:0] oki_rom_addr,
     input  logic [7:0]  oki_rom_data,
     input  logic        oki_rom_ok,
 
@@ -89,8 +103,17 @@ module shangha3_board (
     output logic [15:0] dbg_cpu_din,
     output logic        dbg_cpu_dtack,
     output logic        dbg_blit_busy,
-    output logic        dbg_ram_stall      // CPU write waiting for the blitter
+    output logic        dbg_ram_stall,     // CPU write waiting for the blitter
+    output logic        dbg_latch_wr,      // heberpop/blocken: 68000 sound latch write
+    output logic        dbg_z80_io_wr,     // heberpop/blocken: Z80 I/O write
+    output logic [7:0]  dbg_z80_io_addr,
+    output logic [7:0]  dbg_z80_io_data
 );
+
+    wire g_s3  = (game_id == 2'd0);            // Shanghai III
+    wire g_hbp = (game_id == 2'd1);            // Hebereke no Popoon
+    wire g_blk = (game_id == 2'd2);            // Blocken
+    wire g_new = !g_s3;                        // the Z80 boards
 
     // ------------------------------------------------------------------
     // Clock enables
@@ -206,18 +229,28 @@ module shangha3_board (
     wire cyc_start = cpu_cyc && !cpu_cyc_d;
 
     // ------------------------------------------------------------------
-    // Address decode (MAME shangha3_state::program_map)
+    // Address decode (MAME shangha3_state / heberpop_state / blocken_state
+    // ::program_map)
+    //                 shangha3      heberpop      blocken
+    //   program ROM   000000-07FFFF 000000-0FFFFF 000000-0FFFFF (FF above 03FFFF)
+    //   palette       100000-100FFF 100000-100FFF 200000-200FFF
+    //   I/O page      2000xx        2000xx        1000xx
+    //   graphics ROM  -             800000-B7FFFF 800000-B7FFFF
     // ------------------------------------------------------------------
-    wire sel_rom  = cpu_addr[23:19] == 5'h00;           // 000000-07FFFF
-    wire sel_pal  = cpu_addr[23:12] == 12'h100;         // 100000-100FFF
-    wire sel_io   = cpu_addr[23:8]  == 16'h2000;        // 2000xx
+    wire sel_rom  = g_s3 ? (cpu_addr[23:19] == 5'h00) : (cpu_addr[23:20] == 4'h0);
+    wire sel_pal  = cpu_addr[23:12] == (g_blk ? 12'h200 : 12'h100);
+    wire sel_io   = cpu_addr[23:8]  == (g_blk ? 16'h1000 : 16'h2000);
     wire sel_ram  = cpu_addr[23:16] == 8'h30;           // 300000-30FFFF
     wire sel_flip = cpu_addr[23:1]  == 23'h1A0000;      // 340000/1
     wire sel_gfxl = cpu_addr[23:1]  == 23'h1B0000;      // 360000/1
+    wire sel_grom = g_new && (cpu_addr[23:22] == 2'b10) &&           // 800000-B7FFFF
+                    (cpu_addr[21:0] < 22'h380000);
 
     wire [6:0] io_reg = cpu_addr[7:1];
     localparam logic [6:0] IO_INPUTS = 7'h00,  // 200000
                            IO_SYSTEM = 7'h01,  // 200002
+                           IO_DSW    = 7'h02,  // ..0004 (heberpop/blocken)
+                           IO_LATCH  = 7'h07,  // ..000F (heberpop/blocken, odd byte)
                            IO_BLIT   = 7'h04,  // 200008
                            IO_IRQACK = 7'h05,  // 20000A
                            IO_COIN   = 7'h06,  // 20000C (even byte)
@@ -231,10 +264,12 @@ module shangha3_board (
     wire io_rd = cyc_start && sel_io &&  cpu_rw;
 
     // ------------------------------------------------------------------
-    // Program ROM
+    // Program ROM and (heberpop/blocken) graphics ROM reads, via SDRAM
     // ------------------------------------------------------------------
-    assign prog_addr = cpu_addr[18:1];
-    assign prog_cs   = cpu_cyc && sel_rom && cpu_rw;
+    // graphics ROM: CPU byte offset o = addr - 800000 -> SDRAM 110000 + o
+    wire [22:0] grom_sdram = 23'h110000 + {1'b0, cpu_addr[21:0]};
+    assign prog_addr = sel_grom ? grom_sdram[22:1] : {2'b00, cpu_addr[20:1]};
+    assign prog_cs   = cpu_cyc && (sel_rom || sel_grom) && cpu_rw;
 
     // ------------------------------------------------------------------
     // Work / graphics RAM 300000-30FFFF (32K x 16)
@@ -294,7 +329,8 @@ module shangha3_board (
         .start     (dbg_blit_go),
         .gfxlist   (dbg_gfxlist),
         .flip      (dbg_flip),
-        .shadow_en (1'b1),             // Shanghai III uses pen-14 shadows
+        .shadow_en (g_s3),             // Shanghai III uses pen-14 shadows; heberpop/blocken don't
+        .big_gfx   (g_new),            // 3.5 MB graphics ROM on heberpop/blocken
         .hold      (fb_copying),
         .busy      (blit_busy),
         .px_step   (blit_px_step),
@@ -346,16 +382,20 @@ module shangha3_board (
     // Simple write registers
     // ------------------------------------------------------------------
     logic irq4;
+    logic latch_wr;
+    logic [7:0] latch_din;
 
     always_ff @(posedge clk) begin
         dbg_blit_go <= 1'b0;
         dbg_irq_ack <= 1'b0;
         dbg_oki_wr  <= 1'b0;
+        latch_wr    <= 1'b0;
         if (reset) begin
             dbg_gfxlist  <= '0;
             dbg_flip     <= 1'b0;
             dbg_coinctrl <= '0;
             dbg_oki_data <= '0;
+            latch_din    <= '0;
             irq4         <= 1'b0;
         end else begin
             if (vblank_start) irq4 <= 1'b1;
@@ -363,8 +403,11 @@ module shangha3_board (
                 case (io_reg)
                     IO_BLIT:   dbg_blit_go <= 1'b1;
                     IO_IRQACK: begin dbg_irq_ack <= 1'b1; irq4 <= 1'b0; end
-                    IO_COIN:   if (cpu_uds) dbg_coinctrl <= cpu_dout[15:8];
-                    IO_OKI:    if (cpu_lds) begin dbg_oki_wr <= 1'b1; dbg_oki_data <= cpu_dout[7:0]; end
+                    // coin control: shangha3 even byte (..0C); heberpop/blocken odd byte (..0D),
+                    // where it also selects the OKI ROM bank
+                    IO_COIN:   if (g_s3 ? cpu_uds : cpu_lds) dbg_coinctrl <= g_s3 ? cpu_dout[15:8] : cpu_dout[7:0];
+                    IO_OKI:    if (g_s3 && cpu_lds) begin dbg_oki_wr <= 1'b1; dbg_oki_data <= cpu_dout[7:0]; end
+                    IO_LATCH:  if (g_new && cpu_lds) begin latch_wr <= 1'b1; latch_din <= cpu_dout[7:0]; end
                     default: ;
                 endcase
             end
@@ -435,8 +478,25 @@ module shangha3_board (
         end
     end
 
-    logic [7:0] oki_dout;
-    wire oki_wrn = !(cpu_cyc && sel_io && !cpu_rw && io_reg == IO_OKI && cpu_lds);
+    logic [7:0]  oki_dout;
+    logic        z_oki_wrn;
+    logic [7:0]  z_oki_din;
+    // shangha3: the 68000 writes the OKI at 20006F; heberpop/blocken: the Z80 at port 80
+    wire oki_wrn = g_s3 ? !(cpu_cyc && sel_io && !cpu_rw && io_reg == IO_OKI && cpu_lds) : z_oki_wrn;
+    wire [7:0] oki_din = g_s3 ? cpu_dout[7:0] : z_oki_din;
+
+    // OKI ROM banks, selected by the 68000's coin-control write:
+    //   heberpop: bit 3 picks which 256 KB half of the 512 KB ROM the OKI sees
+    //   blocken : OKI 00000-1FFFF fixed; 20000-3FFFF = ROM bank * 20000 (bits 5:4)
+    logic [17:0] oki_chip_addr;
+    always_comb begin
+        if (g_hbp)
+            oki_rom_addr = {dbg_coinctrl[3], oki_chip_addr};
+        else if (g_blk && oki_chip_addr[17])
+            oki_rom_addr = {dbg_coinctrl[5:4], oki_chip_addr[16:0]};
+        else
+            oki_rom_addr = {1'b0, oki_chip_addr};
+    end
 
     jt6295 #(.INTERPOL(0)) u_oki (
         .rst      (reset),
@@ -444,9 +504,9 @@ module shangha3_board (
         .cen      (ce_oki),
         .ss       (1'b1),
         .wrn      (oki_wrn),
-        .din      (cpu_dout[7:0]),
+        .din      (oki_din),
         .dout     (oki_dout),
-        .rom_addr (oki_rom_addr),
+        .rom_addr (oki_chip_addr),
         .rom_data (oki_rom_data),
         .rom_ok   (oki_rom_ok),
         .sound    (oki_snd),
@@ -454,8 +514,25 @@ module shangha3_board (
     );
 
     // ------------------------------------------------------------------
-    // Mixer (levels measured against the PCB; see shangha3_mixer.sv)
+    // heberpop/blocken sound CPU section: Z80, YM3438, sound latch
+    // (held in reset on Shanghai III)
     // ------------------------------------------------------------------
+    logic signed [15:0] fm_left, fm_right;
+    ga9201_sound u_snd (
+        .clk, .reset(reset || g_s3), .pause(pause_q),
+        .latch_wr, .latch_din,
+        .rom_addr (z80_rom_addr), .rom_cs(z80_rom_cs), .rom_data(z80_rom_data), .rom_ok(z80_rom_ok),
+        .oki_wrn  (z_oki_wrn), .oki_din(z_oki_din), .oki_dout(oki_dout),
+        .fm_left, .fm_right,
+        .dbg_io_wr(dbg_z80_io_wr), .dbg_io_addr(dbg_z80_io_addr), .dbg_io_data(dbg_z80_io_data)
+    );
+    assign dbg_latch_wr = latch_wr;
+
+    // ------------------------------------------------------------------
+    // Mixers: Shanghai III levels measured against the PCB (shangha3_mixer.sv);
+    // heberpop/blocken FM + OKI (ga9201_mixer.sv)
+    // ------------------------------------------------------------------
+    logic signed [15:0] snd_s3, snd_z80;
     shangha3_mixer u_mix (
         .clk     (clk),
         .reset   (reset),
@@ -464,8 +541,18 @@ module shangha3_board (
         .balance (snd_balance),
         .psg_snd (psg_snd),
         .oki_snd (oki_snd),
-        .snd     (snd)
+        .snd     (snd_s3)
     );
+    ga9201_mixer u_mix2 (
+        .clk     (clk),
+        .reset   (reset),
+        .mute    (pause_q),
+        .balance (snd_balance),
+        .fm_left, .fm_right,
+        .oki_snd (oki_snd),
+        .snd     (snd_z80)
+    );
+    always_ff @(posedge clk) snd <= g_s3 ? snd_s3 : snd_z80;
 
     // ------------------------------------------------------------------
     // CPU read data + DTACK
@@ -510,13 +597,17 @@ module shangha3_board (
         end else begin
             hold_acc <= hold_acc + (blit_px_step ? 28'(HOLD_PER_PX_X16) : 28'd0)
                                  - ((bus_hold && hold_acc >= 28'd16) ? 28'd16 : 28'd0);
-            bus_hold <= !vblank && (hold_acc >= 28'd16);
+            // Shanghai III only: the model is calibrated on its PCB. On
+            // heberpop the same model halves the attract mode's speed against
+            // MAME (its screens are full of large sprites); without a PCB to
+            // check, those games run like MAME (no hold).
+            bus_hold <= g_s3 && !vblank && (hold_acc >= 28'd16);
         end
     end
 
     always_comb begin
         if (bus_hold && !cpu_iack)   ready = 1'b0;   // CPU off the bus while the blitter "draws"
-        else if (sel_rom)            ready = prog_ok && wait_cnt >= 4'd2;
+        else if (sel_rom || sel_grom) ready = prog_ok && wait_cnt >= 4'd2;
         // MAME's blitter is instantaneous. Ours first snapshots the command
         // list (and tilemap RAM if used) in ~1% of a frame, then draws from
         // the snapshot. Only CPU writes to words not yet snapshotted wait.
@@ -541,16 +632,27 @@ module shangha3_board (
             cpu_vpa_n   <= !cpu_iack;                 // autovectored interrupts
             cpu_dtack_n <= !(cpu_as_cyc && ready);
 
-            if      (sel_rom) cpu_din <= prog_data;
+            if      (sel_rom || sel_grom) cpu_din <= prog_data;
             else if (sel_ram) cpu_din <= ram_q;
             else if (sel_pal) cpu_din <= pal_q;
-            else if (sel_io) begin
+            else if (sel_io && g_s3) begin
                 case (io_reg)
-                    IO_INPUTS: cpu_din <= in_inputs;
+                    IO_INPUTS: cpu_din <= {2'b11, in_inputs[13:8], 2'b11, in_inputs[5:0]};
                     IO_SYSTEM: cpu_din <= {8'hff, !vblank, in_system};
                     IO_AY_RD:  cpu_din <= {8'hff, ay_dout};
                     IO_PROT:   cpu_din <= {12'h000, prot_q};
                     IO_OKI:    cpu_din <= {8'hff, oki_dout};
+                    default:   cpu_din <= 16'hffff;
+                endcase
+            end
+            else if (sel_io) begin
+                // heberpop/blocken: vblank on INPUTS bits 7 and 15 ("has to toggle");
+                // button 3 (bits 6/14) only on blocken
+                case (io_reg)
+                    IO_INPUTS: cpu_din <= {!vblank, g_blk ? in_inputs[14] : 1'b1, in_inputs[13:8],
+                                           !vblank, g_blk ? in_inputs[6]  : 1'b1, in_inputs[5:0]};
+                    IO_SYSTEM: cpu_din <= {8'hff, 1'b1, in_system};
+                    IO_DSW:    cpu_din <= {dsw2, dsw1};
                     default:   cpu_din <= 16'hffff;
                 endcase
             end

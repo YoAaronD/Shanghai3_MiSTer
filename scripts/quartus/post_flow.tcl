@@ -1,5 +1,5 @@
 # Runs once after every full Quartus compile (POST_FLOW_SCRIPT_FILE in
-# Shanghai3.qsf). Writes output_files/timing_paths.txt: every failing
+# SunsoftGA9201.qsf). Writes output_files/timing_paths.txt: every failing
 # endpoint with its worst path (setup, then hold), one line each, so a
 # timing failure can be diagnosed from one text file.
 # Any problem here only prints a message; it never fails the compile.

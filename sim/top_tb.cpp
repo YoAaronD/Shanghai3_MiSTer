@@ -7,6 +7,9 @@
 //   DIR must hold the four MAME files: s3j_v11.ic3 s3j_v11.ic2
 //   s3j_char-a1.ic43 s3j_v10.ic75 (streamed in that order, like the MRA)
 #include "Vshangha3_top.h"
+#if defined(Z80_PROBE) && !defined(OKI_PROBE) && !defined(DEBUG_CACHE)
+#include "Vshangha3_top___024root.h"
+#endif
 #include "verilated.h"
 #include "ddr_model.h"
 #if defined(DEBUG_CACHE) || defined(OKI_PROBE)
@@ -92,22 +95,24 @@ struct SdramModel {
 
 int main(int argc, char** argv) {
     Verilated::commandArgs(argc, argv);
-    std::string roms, frames_out, wav_path;
+    std::string roms, frames_out, wav_path, stream_path;
+    int game = 0;
     int frames = 10, every = 30;
     bool check_sdram = false;
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--roms") && i + 1 < argc) roms = argv[++i];
+        else if (!strcmp(argv[i], "--stream") && i + 1 < argc) stream_path = argv[++i];
+        else if (!strcmp(argv[i], "--game") && i + 1 < argc) game = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--frames") && i + 1 < argc) frames = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--frames-out") && i + 1 < argc) frames_out = argv[++i];
         else if (!strcmp(argv[i], "--every") && i + 1 < argc) every = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--wav") && i + 1 < argc) wav_path = argv[++i];
         else if (!strcmp(argv[i], "--check-sdram")) check_sdram = true;
     }
+    // The download stream, as the MRA builds it (scripts/mra_stream.py MRA ROMDIR OUT)
     std::vector<uint8_t> stream;
-    for (const char* n : {"s3j_v11.ic3", "s3j_v11.ic2", "s3j_char-a1.ic43", "s3j_v10.ic75"}) {
-        auto d = load(roms + "/" + n);
-        stream.insert(stream.end(), d.begin(), d.end());
-    }
+    if (stream_path.empty()) { fprintf(stderr, "need --stream <file> (scripts/mra_stream.py)\n"); return 1; }
+    stream = load(stream_path);
     printf("ROM stream: %zu bytes\n", stream.size());
 
     auto* top = new Vshangha3_top;
@@ -120,6 +125,7 @@ int main(int argc, char** argv) {
     std::vector<int16_t> audio;
     int vx = 0, vy = 0, prev_ce = 0, prev_hblank = 1, prev_vblank = 1, frame = 0;
 
+    top->game_id = game;
     top->in_inputs = 0xffff;
     top->in_system = 0x7f;
     top->dsw1 = 0xff;
@@ -203,11 +209,11 @@ int main(int argc, char** argv) {
             return sd.mem[sd.index(ba, row, col)];
         };
         long bad = 0;
-        for (uint32_t i = 0; i < 0x40000; i++) {          // program: {ic3, ic2}
-            uint16_t exp = (stream[i] << 8) | stream[0x40000 + i];
+        for (uint32_t i = 0; i < 0x80000; i++) {          // program: {even EPROM, odd EPROM}
+            uint16_t exp = (stream[i] << 8) | stream[0x80000 + i];
             if (word(i * 2) != exp && bad++ < 5) printf("  prog word %05X: %04X != %04X\n", i, word(i * 2), exp);
         }
-        for (uint32_t b = 0x80000; b < 0x2C0000; b += 2) { // graphics + samples, little-endian words
+        for (uint32_t b = 0x100000; b < 0x510000; b += 2) { // Z80, graphics, samples: little-endian words
             uint16_t exp = stream[b] | (stream[b + 1] << 8);
             if (word(b) != exp && bad++ < 10) printf("  byte %06X: %04X != %04X\n", b, word(b), exp);
         }
@@ -242,6 +248,17 @@ int main(int argc, char** argv) {
             last_ok = ok;
             if (top->vblank && !prev_vblank && (frame + 1) % 100 == 0)
                 printf("frame %d: OKI ROM bytes read %ld, non-zero OKI output samples %ld\n", frame + 1, okireads, nz);
+        }
+#endif
+#ifdef Z80_PROBE
+        {   // heberpop/blocken: log every Z80 I/O write (port, data), for comparing with MAME's sound_log
+            static FILE* zl = fopen("z80_io_top.txt", "w");
+            static int last = 0;
+            auto* r = top->rootp;
+            int w = r->shangha3_top__DOT__u_board__DOT__u_snd__DOT__io_wr_d;
+            if (w && !last) fprintf(zl, "%02X %02X\n", r->shangha3_top__DOT__u_board__DOT__u_snd__DOT__A & 0xff,
+                                    r->shangha3_top__DOT__u_board__DOT__u_snd__DOT__z_dout);
+            last = w;
         }
 #endif
         if (top->vblank && !prev_vblank) {

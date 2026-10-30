@@ -1,5 +1,5 @@
-// Shanghai III core: board + ROM storage in SDRAM.
-// Used by the MiSTer wrapper (Shanghai3.sv) and by the end-to-end simulation.
+// GA9201 core (Shanghai III, Hebereke no Popoon, Blocken): board + ROM storage in SDRAM.
+// Used by the MiSTer wrapper (SunsoftGA9201.sv) and by the end-to-end simulation.
 
 module shangha3_top (
     input  logic        clk,            // 96 MHz
@@ -7,6 +7,7 @@ module shangha3_top (
     input  logic        sdram_init,     // hold high until the PLL is locked
     input  logic        pause,          // freeze the game (e.g. while the OSD is open)
     input  logic [2:0]  snd_balance,    // OSD OKI vs YM2149 balance (0 = PCB)
+    input  logic [1:0]  game_id,        // 0 shangha3j, 1 heberpop, 2 blocken (MRA, ioctl index 1)
 
     // ROM download from the MiSTer menu / MRA
     input  logic        ioctl_download,
@@ -97,19 +98,23 @@ module shangha3_top (
     // ------------------------------------------------------------------
     // Board
     // ------------------------------------------------------------------
-    logic [18:1] prog_addr;
+    logic [22:1] prog_addr;
     logic        prog_cs, prog_ok;
     logic [15:0] prog_data;
+    logic [15:0] z80_rom_addr;
+    logic        z80_rom_cs, z80_rom_ok;
+    logic [7:0]  z80_rom_data;
     logic        gfx_req, gfx_ack;
-    logic [17:0] gfx_addr;
+    logic [18:0] gfx_addr;
     logic [63:0] gfx_data;
-    logic [17:0] oki_rom_addr;
+    logic [18:0] oki_rom_addr;
     logic [7:0]  oki_rom_data;
     logic        oki_rom_ok;
 
     shangha3_board u_board (
-        .clk, .reset(board_reset), .vid_reset(sdram_init), .pause, .snd_balance,
+        .clk, .reset(board_reset), .game_id, .vid_reset(sdram_init), .pause, .snd_balance,
         .prog_addr, .prog_cs, .prog_data, .prog_ok,
+        .z80_rom_addr, .z80_rom_cs, .z80_rom_data, .z80_rom_ok,
         .in_inputs, .in_system, .dsw1, .dsw2,
         .ce_pix, .hsync, .vsync, .hblank, .vblank, .vblank_next, .red, .green, .blue,
         .gfx_req, .gfx_addr, .gfx_ack, .gfx_data,
@@ -121,7 +126,8 @@ module shangha3_top (
         .dbg_blit_go(), .dbg_irq_ack(), .dbg_gfxlist(), .dbg_flip(), .dbg_coinctrl(),
         .dbg_oki_wr(), .dbg_oki_data(), .dbg_cpu_addr(), .dbg_cpu_cyc_start(),
         .dbg_cpu_rw(), .dbg_cpu_dout(), .dbg_cpu_din(), .dbg_cpu_dtack(),
-        .dbg_blit_busy(), .dbg_ram_stall()
+        .dbg_blit_busy(), .dbg_ram_stall(),
+        .dbg_latch_wr(), .dbg_z80_io_wr(), .dbg_z80_io_addr(), .dbg_z80_io_data()
     );
 
     // ------------------------------------------------------------------
@@ -140,11 +146,12 @@ module shangha3_top (
         .clk, .reset(mem_reset), .ready(mem_ready),
         .ioctl_download, .ioctl_index, .ioctl_wr, .ioctl_addr, .ioctl_dout, .ioctl_wait,
         .prog_addr, .prog_cs, .prog_data, .prog_ok,
+        .z80_addr(z80_rom_addr), .z80_cs(z80_rom_cs), .z80_data(z80_rom_data), .z80_ok(z80_rom_ok),
         .gfx_req, .gfx_addr, .gfx_ack, .gfx_data,
         .oki_rom_addr, .oki_rom_data, .oki_rom_ok,
         .ch1_addr, .ch1_req, .ch1_dout, .ch1_ready,
         .ch2_addr, .ch2_req, .ch2_dout, .ch2_ready,
-        .ch3_addr, .ch3_req, .ch3_din, .ch3_be, .ch3_rnw, .ch3_ready,
+        .ch3_addr, .ch3_req, .ch3_din, .ch3_be, .ch3_rnw, .ch3_ready, .ch3_dout,
         .ch4_addr, .ch4_req, .ch4_dout, .ch4_ready
     );
 

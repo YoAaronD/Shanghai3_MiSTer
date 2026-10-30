@@ -35,6 +35,7 @@ module shangha3_blitter (
     input  logic [15:0] gfxlist,      // CPU-written list address (360000)
     input  logic        flip,         // flipscreen
     input  logic        shadow_en,    // shangha3 = 1, heberpop/blocken = 0
+    input  logic        big_gfx,      // heberpop/blocken: 3.5 MB graphics ROM, 28,672 tiles (shangha3: 2 MB, 16,384)
     input  logic        hold,         // don't start a new list (frame buffer copy running)
     output logic        busy,
     output logic        px_step,      // one pulse per destination pixel processed (bus-hold model)
@@ -45,7 +46,7 @@ module shangha3_blitter (
     input  logic [15:0] ram_q,
 
     output logic        gfx_req,
-    output logic [17:0] gfx_addr,
+    output logic [18:0] gfx_addr,
     input  logic        gfx_ack,
     input  logic [63:0] gfx_data,
 
@@ -170,6 +171,7 @@ module shangha3_blitter (
     // Draw engine registers (one tile, scaled, clipped)
     // ------------------------------------------------------------------
     logic [15:0]        e_code;
+    logic [14:0]        e_tile;       // e_code wrapped to the ROM's tile count, as MAME's code % total
     logic [6:0]         e_color;
     logic               e_fx, e_fy, e_shadow;
     logic signed [15:0] e_destx, e_desty;
@@ -180,11 +182,11 @@ module shangha3_blitter (
     logic signed [31:0] d_srcx, d_srcy, d_cursrcx;
     logic [16:0]        d_fbrow;
     logic [63:0]        row_data;
-    logic [17:0]        cache_addr;
+    logic [18:0]        cache_addr;
     logic               cache_valid;
     // fetch unit: one outstanding ROM request, one prefetched row
     logic               pf_valid;
-    logic [17:0]        pf_addr;
+    logic [18:0]        pf_addr;
     logic [63:0]        pf_data;
 
     // ------------------------------------------------------------------
@@ -227,10 +229,26 @@ module shangha3_blitter (
                      (state == S_TM_COPY) ? tc_issue :
                      phase1               ? 14'h0000 : 14'h2000;
 
+    // Tile number from a 16-bit code, wrapped to the graphics ROM size as
+    // MAME's gfx element does (code % total): 16,384 tiles (2 MB) on
+    // Shanghai III, 28,672 (3.5 MB, 0x7000) on heberpop/blocken.
+    function automatic logic [14:0] tile_of(input logic [15:0] c, input logic big);
+        logic [15:0] t;
+        if (!big) tile_of = {1'b0, c[13:0]};
+        else begin
+            t = c;
+            if (t >= 16'h7000) t = t - 16'h7000;
+            if (t >= 16'h7000) t = t - 16'h7000;
+            tile_of = t[14:0];
+        end
+    endfunction
+
     // combinational helpers
-    wire [17:0]        row_addr = {e_code[13:0], 4'b0} + 18'(d_srcy >>> 16);
+    wire [18:0]        row_sum  = {e_tile, 4'b0} + 19'(d_srcy >>> 16);
+    wire [18:0]        row_addr = big_gfx ? row_sum : {1'b0, row_sum[17:0]};   // shangha3: 18-bit wrap as before
     wire signed [31:0] next_srcy = d_srcy + e_dy;
-    wire [17:0]        next_row_addr = {e_code[13:0], 4'b0} + 18'(next_srcy >>> 16);
+    wire [18:0]        next_row_sum  = {e_tile, 4'b0} + 19'(next_srcy >>> 16);
+    wire [18:0]        next_row_addr = big_gfx ? next_row_sum : {1'b0, next_row_sum[17:0]};
     wire [3:0]         pix_col  = d_cursrcx[19:16];
     wire [3:0]         pen      = row_data[{pix_col, 2'b00} +: 4];
     wire [16:0]        pix_addr = d_fbrow + 17'(d_curx);
@@ -478,7 +496,7 @@ module shangha3_blitter (
                 else if (w4[3])             state <= S_TM_SETUP;
                 else if (w10 <= 16'd1 && w13 <= 16'd1) begin
                     // fill: one tile at 256x (16*4096/... -> 4096 px wide, step 1/256)
-                    e_code <= w1; e_color <= w5[6:0]; e_fx <= fx; e_fy <= fy;
+                    e_code <= w1; e_tile <= tile_of(w1, big_gfx); e_color <= w5[6:0]; e_fx <= fx; e_fy <= fy;
                     e_destx <= sx; e_desty <= sy;
                     e_dstw <= 13'd4096; e_dsth <= 13'd4096;
                     e_dx <= 32'sd256;   e_dy <= 32'sd256;
@@ -493,7 +511,7 @@ module shangha3_blitter (
                     spr_h    <= width_for_zoom(w13);
                     if (((w6 + 16'd15) >> 4) == 16'd0) state <= S_P2_NEXT;
                     else begin
-                        e_code <= w1; e_color <= w5[6:0]; e_fx <= fx; e_fy <= fy;
+                        e_code <= w1; e_tile <= tile_of(w1, big_gfx); e_color <= w5[6:0]; e_fx <= fx; e_fy <= fy;
                         e_destx <= sx; e_desty <= sy;
                         e_dstw <= 13'(width_for_zoom(w10)); e_dsth <= 13'(width_for_zoom(w13));
                         e_dx <= $signed(dx_for_width(width_for_zoom(w10)));
@@ -513,6 +531,7 @@ module shangha3_blitter (
                 else begin
                     spr_i   <= spr_i + 6'd1;
                     e_code  <= nc;
+                    e_tile  <= tile_of(nc, big_gfx);
                     e_dx    <= $signed(dx_for_width(spr_w));   // undo any flip negation
                     e_dy    <= $signed(dx_for_width(spr_h));
                     e_destx <= sx + $signed({6'b0, spr_i + 6'd1, 4'b0});
@@ -562,6 +581,7 @@ module shangha3_blitter (
 
             S_TM_POS: begin
                 e_code   <= {w1[15:12], tm_tile[11:0]};
+                e_tile   <= tile_of({w1[15:12], tm_tile[11:0]}, big_gfx);
                 e_color  <= {color[6:4], tm_tile[15:12]};
                 e_fx     <= fx;
                 e_fy     <= fy;

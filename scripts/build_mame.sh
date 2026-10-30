@@ -44,6 +44,12 @@ if [ ! -f mame/makefile ]; then
 fi
 cd mame
 git sparse-checkout disable 2>/dev/null || true
+# Pin the version the project's golden references were made with (MAME_COMMIT=HEAD to skip)
+MAME_COMMIT="${MAME_COMMIT:-ab2d1ca215c6e14dbe83fd2d0a70a4862fd16253}"
+if [ "$MAME_COMMIT" != "HEAD" ] && [ "$(git rev-parse HEAD)" != "$MAME_COMMIT" ]; then
+    git fetch -q --depth 1 --filter=blob:none origin "$MAME_COMMIT" && git checkout -q "$MAME_COMMIT" \
+        || echo "WARNING: could not check out MAME $MAME_COMMIT; building $(git rev-parse --short HEAD)"
+fi
 
 make SUBTARGET=s3 SOURCES=src/mame/sunelectronics/shangha3.cpp NOWERROR=1 \
      NO_X11=1 NO_USE_XINPUT=1 NO_OPENGL=1 NO_USE_MIDI=1 NO_USE_PORTAUDIO=1 \

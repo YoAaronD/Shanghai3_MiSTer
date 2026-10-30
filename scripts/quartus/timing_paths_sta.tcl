@@ -1,5 +1,5 @@
 # Called by post_flow.tcl through quartus_sta. Can also be run by hand:
-#   quartus_sta -t scripts/quartus/timing_paths_sta.tcl Shanghai3 Shanghai3
+#   quartus_sta -t scripts/quartus/timing_paths_sta.tcl SunsoftGA9201 SunsoftGA9201
 set proj [lindex $quartus(args) 0]
 set rev  [lindex $quartus(args) 1]
 project_open $proj -revision $rev

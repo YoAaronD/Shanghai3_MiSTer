@@ -62,10 +62,11 @@ int main(int argc, char** argv) {
         else if (!strcmp(argv[i], "--max") && i + 1 < argc) max_phrases = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--gap") && i + 1 < argc) write_gap = atoi(argv[++i]);
     }
-    std::vector<uint8_t> rom(0x40000, 0);
+    std::vector<uint8_t> rom(0x80000, 0);   // up to 512 KB (heberpop/blocken); sized to the file below
     FILE* f = fopen(oki_path.c_str(), "rb");
     if (!f) { perror(oki_path.c_str()); return 1; }
     size_t n = fread(rom.data(), 1, rom.size(), f); fclose(f);
+    rom.resize(n);
 
     auto* t = new Voki_bench;
     SdramModel sd;
@@ -77,7 +78,7 @@ int main(int argc, char** argv) {
     int prog_timer = 0;
     long gfx_rows = 0, prog_misses = 0;
 
-    long samples = 0, nonzero = 0, mismatches = 0, status_mismatch = 0;
+    long samples = 0, nonzero = 0, mismatches = 0, status_mismatch = 0, status_1sample = 0;
     std::vector<int16_t> wav;
     bool comparing = false;
 
@@ -88,10 +89,10 @@ int main(int argc, char** argv) {
         dq_next = sd.cycle(t);
         // direct ROM for oki_b: data 2 clocks after an address change
         if (t->rom_b_addr != b_last) { b_last = t->rom_b_addr; b_wait = 2; t->rom_b_ok = 0; }
-        else if (b_wait > 0 && --b_wait == 0) { t->rom_b_data = rom[b_last & 0x3ffff]; t->rom_b_ok = 1; }
+        else if (b_wait > 0 && --b_wait == 0) { t->rom_b_data = rom[b_last % rom.size()]; t->rom_b_ok = 1; }
         // background traffic
         if (stress && t->mem_ready && !t->ioctl_download) {
-            if (t->gfx_ack) { t->gfx_addr = rnd() & 0x3ffff; gfx_rows++; }
+            if (t->gfx_ack) { t->gfx_addr = rnd() % 0x70000; gfx_rows++; }
             t->gfx_req = 1;
             if (++prog_timer >= 24) {            // a new 68000 bus cycle every 24 clocks, random address
                 prog_timer = 0;
@@ -103,16 +104,25 @@ int main(int argc, char** argv) {
         {   // probe the SDRAM-fed ROM port: ok must only be high with the right byte
             auto* r = t->rootp;
             static long bad_ok = 0, ok_cycles = 0;
-            uint32_t a = r->oki_bench__DOT__rom_a_addr; uint8_t d = r->oki_bench__DOT__rom_a_data;
+            uint32_t a = r->oki_bench__DOT__rom_a_addr | (t->oki_bank << 18); uint8_t d = r->oki_bench__DOT__rom_a_data;
             static uint32_t prev_a = 0xffffffff; bool stable = (a == prev_a); prev_a = a;
-            if (r->oki_bench__DOT__rom_a_ok && stable) { ok_cycles++; if (d != rom[a & 0x3ffff]) { if (bad_ok < 5) printf("  cycle %llu: ok with addr %05X data %02X, rom has %02X\n", (unsigned long long)cycle, a, d, rom[a & 0x3ffff]); bad_ok++; } }
+            if (r->oki_bench__DOT__rom_a_ok && stable) { ok_cycles++; if (d != rom[a % rom.size()]) { if (bad_ok < 5) printf("  cycle %llu: ok with addr %05X data %02X, rom has %02X\n", (unsigned long long)cycle, a, d, rom[a % rom.size()]); bad_ok++; } }
             if (cycle % 50000000 == 0 && comparing) printf("  [%llu] ok cycles %ld, bad %ld\n", (unsigned long long)cycle, ok_cycles, bad_ok);
         }
         if (comparing && t->ce_oki) {
             samples++;
             if (t->snd_a != 0 || t->snd_b != 0) nonzero++;
             if (t->snd_a != t->snd_b) { if (mismatches < 5) printf("  sample %ld: sdram %d, direct %d\n", samples, (int16_t)(t->snd_a << 2) >> 2, (int16_t)(t->snd_b << 2) >> 2); mismatches++; }
-            if ((t->oki_dout_a & 0xf) != (t->oki_dout_b & 0xf)) status_mismatch++;
+            // busy flags: the SDRAM path may start a channel one sample later than a
+            // direct ROM (the phrase-table copy answers in 3-4 clocks instead of 2,
+            // which can cross an OKI clock edge). Count only differences that last
+            // more than one sample.
+            {   static int run = 0;
+                if ((t->oki_dout_a & 0xf) != (t->oki_dout_b & 0xf)) {
+                    if (++run == 2) { if (status_mismatch < 3) printf("  status differs from sample %ld (cycle %llu): sdram %X direct %X\n", samples - 1, (unsigned long long)cycle, t->oki_dout_a & 0xf, t->oki_dout_b & 0xf); status_mismatch++; }
+                    else if (run == 1) status_1sample++;
+                } else run = 0;
+            }
             if (!wav_path.empty() && samples % 132 == 0) wav.push_back((int16_t)(t->snd_a << 2));
         }
     };
@@ -123,11 +133,11 @@ int main(int argc, char** argv) {
     t->sdram_init = 0;
     for (int i = 0; i < 14000; i++) tick();
 
-    // download only the OKI region of the MRA stream (offset 0x280000)
+    // download only the OKI region of the MRA stream (offset 0x490000)
     t->ioctl_download = 1;
     for (int i = 0; i < 16; i++) tick();
     for (size_t a = 0; a < n; a++) {
-        t->ioctl_addr = 0x280000 + a; t->ioctl_dout = rom[a]; t->ioctl_wr = 1;
+        t->ioctl_addr = 0x490000 + a; t->ioctl_dout = rom[a]; t->ioctl_wr = 1;
         tick(); t->ioctl_wr = 0; tick(); tick();
         while (t->ioctl_wait) tick();
     }
@@ -144,33 +154,42 @@ int main(int argc, char** argv) {
         for (int i = 0; i < write_gap; i++) tick();   // clocks between CPU writes
     };
 
-    // valid phrases from the ROM's phrase table
-    std::vector<int> phrases;
-    for (int p = 1; p < 128; p++) {
-        const uint8_t* e = &rom[p * 8];
-        uint32_t s = ((e[0] << 16) | (e[1] << 8) | e[2]) & 0x3ffff, en = ((e[3] << 16) | (e[4] << 8) | e[5]) & 0x3ffff;
-        if (s < en && en < n && phrases.size() < max_phrases) phrases.push_back(p);
-    }
-    printf("playing %zu phrases, 4 channels at a time, %s background SDRAM traffic\n",
-           phrases.size(), stress ? "with" : "without");
-
+    // valid phrases from the ROM's phrase table; with a 512 KB ROM (heberpop),
+    // both 256 KB banks (the bank switch is exercised between phrase groups,
+    // and bank 1 has its own phrase table at 40000)
+    int nbanks = n > 0x40000 ? 2 : 1;
     comparing = true;
     int timeouts = 0;
-    for (size_t i = 0; i < phrases.size(); i += 4) {
-        for (size_t k = 0; k < 4 && i + k < phrases.size(); k++) {
-            write(0x80 | phrases[i + k]);
-            write((0x10 << k) | 0x0);             // channel k, no attenuation
+    size_t total = 0;
+    for (int bank = 0; bank < nbanks; bank++) {
+        t->oki_bank = bank;
+        for (int i = 0; i < 200; i++) tick();
+        const uint8_t* base = &rom[bank * 0x40000];
+        std::vector<int> phrases;
+        for (int p = 1; p < 128; p++) {
+            const uint8_t* e = &base[p * 8];
+            uint32_t s = ((e[0] << 16) | (e[1] << 8) | e[2]) & 0x3ffff, en = ((e[3] << 16) | (e[4] << 8) | e[5]) & 0x3ffff;
+            if (s < en && en < 0x40000 && phrases.size() < max_phrases) phrases.push_back(p);
         }
-        uint64_t start = cycle;
-        while (((t->oki_dout_a | t->oki_dout_b) & 0xf) && cycle - start < 96000000ull * 3) tick();
-        if (cycle - start >= 96000000ull * 3) timeouts++;
-        for (int j = 0; j < 20000; j++) tick();
+        printf("bank %d: playing %zu phrases, 4 channels at a time, %s background SDRAM traffic\n",
+               bank, phrases.size(), stress ? "with" : "without");
+        total += phrases.size();
+        for (size_t i = 0; i < phrases.size(); i += 4) {
+            for (size_t k = 0; k < 4 && i + k < phrases.size(); k++) {
+                write(0x80 | phrases[i + k]);
+                write((0x10 << k) | 0x0);             // channel k, no attenuation
+            }
+            uint64_t start = cycle;
+            while (((t->oki_dout_a | t->oki_dout_b) & 0xf) && cycle - start < 96000000ull * 3) tick();
+            if (cycle - start >= 96000000ull * 3) timeouts++;
+            for (int j = 0; j < 20000; j++) tick();
+        }
     }
     comparing = false;
 
     printf("compared %ld output samples (%.1f s), %ld non-zero\n", samples, samples / 1056000.0, nonzero);
     printf("background traffic: %ld blitter rows, %ld CPU bus cycles that missed the cache\n", gfx_rows, prog_misses);
-    printf("output mismatches: %ld, busy-flag mismatches: %ld, timeouts: %d\n", mismatches, status_mismatch, timeouts);
+    printf("output mismatches: %ld, busy-flag mismatches: %ld (plus %ld one-sample start delays), timeouts: %d\n", mismatches, status_mismatch, status_1sample, timeouts);
 
     if (!wav_path.empty()) {
         FILE* w = fopen(wav_path.c_str(), "wb");
