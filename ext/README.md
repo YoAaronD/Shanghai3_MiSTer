@@ -15,6 +15,11 @@ straight from a GitHub zip download. Each folder keeps its own LICENSE.
 Z80 runs at 6 MHz from the 96 MHz clock); `tv80s.v` itself is kept unmodified
 for reference and isn't in the build.
 
+**Local change to jt12:** `hdl/jt12_div.v` makes its clock enables on the rising
+clock edge instead of upstream's falling edge. At 96 MHz the falling-edge enables
+gave half-cycle (5.2 ns) paths that failed timing; every jt12 enable now comes one
+96 MHz clock (10 ns) later, which doesn't change what it plays.
+
 Timing assumptions checked against the games:
 - **jt12** processes a register write on any clock where `cs_n` and `wr_n` are
   low, so `ga9201_sound.sv` gives it a one-clock strobe per Z80 `OUT`. It always

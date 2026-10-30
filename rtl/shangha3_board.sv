@@ -281,9 +281,20 @@ module shangha3_board (
     wire  [14:0] ram_a  = cpu_addr[15:1];
     logic        ram_we;       // driven below, after the blitter arbitration logic
 
+    // The write itself lands one clock after ram_we (registered address, data
+    // and byte enables), so the blitter-conflict compare doesn't have to reach
+    // the 64 RAM blocks' write enables in one 96 MHz clock (timing). The bus
+    // cycle and its DTACK are unchanged; nothing reads the word within a clock.
+    logic        ram_we_hi_q, ram_we_lo_q;
+    logic [14:0] ram_wa_q;
+    logic [15:0] ram_wd_q;
     always_ff @(posedge clk) begin
-        if (ram_we && cpu_uds) ram_hi[ram_a] <= cpu_dout[15:8];
-        if (ram_we && cpu_lds) ram_lo[ram_a] <= cpu_dout[7:0];
+        ram_we_hi_q <= ram_we && cpu_uds;
+        ram_we_lo_q <= ram_we && cpu_lds;
+        ram_wa_q    <= ram_a;
+        ram_wd_q    <= cpu_dout;
+        if (ram_we_hi_q) ram_hi[ram_wa_q] <= ram_wd_q[15:8];
+        if (ram_we_lo_q) ram_lo[ram_wa_q] <= ram_wd_q[7:0];
         ram_q <= {ram_hi[ram_a], ram_lo[ram_a]};
     end
 

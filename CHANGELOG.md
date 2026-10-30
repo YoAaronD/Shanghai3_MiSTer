@@ -35,6 +35,13 @@ Popoon (`heberpop`), 2 Blocken (`blocken`).
   Button 2, Button 3, Start, Coin, Service, so saved MiSTer button mappings for
   this core need redoing.
 
+- Timing at 96 MHz with the new sound section (the first multi-game build had
+  −1.85 ns setup slack): the work RAM write lands one clock after the bus-cycle
+  decision (registered address, data and byte enables); the OKI phrase-table copy
+  has one write port, so it is block RAM instead of 16K registers; jt12's clock
+  enables come from the rising edge (`ext/README.md`); a multicycle constraint
+  covers paths inside the Z80 (every tv80 register updates on its 6 MHz enable).
+
 **Added**
 - `rtl/ga9201_sound.sv`: the heberpop/blocken sound CPU section: Z80 (tv80 with a
   clock enable, `rtl/tv80_cen.v`, 6 MHz), 2 KB RAM, YM3438 (jt12, 8 MHz), sound

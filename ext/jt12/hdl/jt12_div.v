@@ -80,7 +80,9 @@ initial clk_en_666 = 1'b0;
 reg cen_55_int;
 reg [1:0] div2=2'b0;
 
-always @(negedge clk) begin
+// SunsoftGA9201: posedge instead of upstream's negedge, so the enables don't
+// give half-cycle (5.2 ns) paths at 96 MHz. Every enable moves one clock later.
+always @(posedge clk) begin
     cen_int        <= opn_cnt      == 4'd0;
     cen_ssg_int    <= ssg_cnt      == 3'd0;
     cen_adpcm_int  <= adpcm_cnt666 == 5'd0;

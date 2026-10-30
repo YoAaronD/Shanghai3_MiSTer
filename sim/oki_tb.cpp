@@ -5,7 +5,8 @@
 // the ROM image directly. Both must produce identical samples. Background
 // SDRAM traffic (CPU cache misses, blitter rows) is generated at the same time.
 //
-// usage: Voki_bench --oki oki.bin [--no-stress] [--wav out.wav]
+// usage: Voki_bench --oki oki.bin [--no-stress] [--wav out.wav] [--blocken]
+//   --blocken: blocken's OKI banking (fixed 00000-1FFFF, 4 banks of 128 KB at 20000-3FFFF)
 #include "Voki_bench.h"
 #include "verilated.h"
 #include "Voki_bench___024root.h"
@@ -53,11 +54,13 @@ int main(int argc, char** argv) {
     Verilated::commandArgs(argc, argv);
     std::string oki_path, wav_path;
     bool stress = true;
+    bool blk = false;
     size_t max_phrases = 1000;
     int write_gap = 200;
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--oki") && i + 1 < argc) oki_path = argv[++i];
         else if (!strcmp(argv[i], "--wav") && i + 1 < argc) wav_path = argv[++i];
+        else if (!strcmp(argv[i], "--blocken")) blk = true;
         else if (!strcmp(argv[i], "--no-stress")) stress = false;
         else if (!strcmp(argv[i], "--max") && i + 1 < argc) max_phrases = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--gap") && i + 1 < argc) write_gap = atoi(argv[++i]);
@@ -104,7 +107,8 @@ int main(int argc, char** argv) {
         {   // probe the SDRAM-fed ROM port: ok must only be high with the right byte
             auto* r = t->rootp;
             static long bad_ok = 0, ok_cycles = 0;
-            uint32_t a = r->oki_bench__DOT__rom_a_addr | (t->oki_bank << 18); uint8_t d = r->oki_bench__DOT__rom_a_data;
+            uint32_t c = r->oki_bench__DOT__rom_a_addr;
+            uint32_t a = blk ? ((c & 0x20000) ? (t->oki_bank << 17) | (c & 0x1ffff) : c) : (c | ((t->oki_bank & 1) << 18)); uint8_t d = r->oki_bench__DOT__rom_a_data;
             static uint32_t prev_a = 0xffffffff; bool stable = (a == prev_a); prev_a = a;
             if (r->oki_bench__DOT__rom_a_ok && stable) { ok_cycles++; if (d != rom[a % rom.size()]) { if (bad_ok < 5) printf("  cycle %llu: ok with addr %05X data %02X, rom has %02X\n", (unsigned long long)cycle, a, d, rom[a % rom.size()]); bad_ok++; } }
             if (cycle % 50000000 == 0 && comparing) printf("  [%llu] ok cycles %ld, bad %ld\n", (unsigned long long)cycle, ok_cycles, bad_ok);
@@ -128,6 +132,7 @@ int main(int argc, char** argv) {
     };
 
     t->oki_wrn = 1;
+    t->blk_mode = blk;
     t->reset = 1; t->sdram_init = 1;
     for (int i = 0; i < 100; i++) tick();
     t->sdram_init = 0;
@@ -157,18 +162,21 @@ int main(int argc, char** argv) {
     // valid phrases from the ROM's phrase table; with a 512 KB ROM (heberpop),
     // both 256 KB banks (the bank switch is exercised between phrase groups,
     // and bank 1 has its own phrase table at 40000)
-    int nbanks = n > 0x40000 ? 2 : 1;
+    // blocken: one phrase table at 00000; each of the 4 banks plays the phrases
+    // that start in the banked half (bank 0 plays all of them)
+    int nbanks = blk ? 4 : (n > 0x40000 ? 2 : 1);
     comparing = true;
     int timeouts = 0;
     size_t total = 0;
     for (int bank = 0; bank < nbanks; bank++) {
         t->oki_bank = bank;
         for (int i = 0; i < 200; i++) tick();
-        const uint8_t* base = &rom[bank * 0x40000];
+        const uint8_t* base = blk ? &rom[0] : &rom[bank * 0x40000];
         std::vector<int> phrases;
         for (int p = 1; p < 128; p++) {
             const uint8_t* e = &base[p * 8];
             uint32_t s = ((e[0] << 16) | (e[1] << 8) | e[2]) & 0x3ffff, en = ((e[3] << 16) | (e[4] << 8) | e[5]) & 0x3ffff;
+            if (blk && bank > 0 && s < 0x20000) continue;
             if (s < en && en < 0x40000 && phrases.size() < max_phrases) phrases.push_back(p);
         }
         printf("bank %d: playing %zu phrases, 4 channels at a time, %s background SDRAM traffic\n",

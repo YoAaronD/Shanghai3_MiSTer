@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # OKI samples through the real ROM path (download -> SDRAM -> memory hub) vs. direct ROM.
-# usage: scripts/oki_test.sh [--no-stress] [--wav out.wav]
+# usage: scripts/oki_test.sh [--no-stress] [--wav out.wav] [--oki /abs/oki.bin] [--blocken] [--max N]
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-OBJ="$ROOT/sim/obj_oki"
+OBJ="${OKI_OBJ:-$ROOT/sim/obj_oki}"
 verilator --cc --exe --build -O2 -j 2 --public-flat-rw -Wno-fatal -Wno-WIDTH -Wno-CASEINCOMPLETE -Wno-UNOPTFLAT \
     -Wno-PINMISSING -Wno-UNUSEDSIGNAL -Wno-BLKANDNBLK -Wno-INITIALDLY -Wno-MULTIDRIVEN \
     --top-module oki_bench --Mdir "$OBJ" \

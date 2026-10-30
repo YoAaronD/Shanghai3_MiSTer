@@ -272,15 +272,15 @@ module shangha3_mem (
     // address; table reads are those in the first 1 KB of either 256 KB half.
     // (Blocken's fixed area holds its table; a bank-2 read at 40000-403FF also
     // finds the right bytes in copy 1, since copy 1 is ROM 40000-403FF.)
+    // One write port (copy select = address bit), so this maps to block RAM;
+    // with two write statements Quartus built it from 16K registers.
     logic [7:0]  oki_tbl [0:2047];
     logic [7:0]  oki_tbl_q;
+    wire         oki_tbl_w0 = ioctl_addr >= OKI_BASE            && ioctl_addr < OKI_BASE + 27'h400;
+    wire         oki_tbl_w1 = ioctl_addr >= OKI_BASE + 27'h40000 && ioctl_addr < OKI_BASE + 27'h40400;
     always_ff @(posedge clk) begin
-        if (ioctl_download && ioctl_wr && ioctl_index == 16'd0) begin
-            if (ioctl_addr >= OKI_BASE && ioctl_addr < OKI_BASE + 27'h400)
-                oki_tbl[{1'b0, ioctl_addr[9:0]}] <= ioctl_dout;
-            if (ioctl_addr >= OKI_BASE + 27'h40000 && ioctl_addr < OKI_BASE + 27'h40400)
-                oki_tbl[{1'b1, ioctl_addr[9:0]}] <= ioctl_dout;
-        end
+        if (ioctl_download && ioctl_wr && ioctl_index == 16'd0 && (oki_tbl_w0 || oki_tbl_w1))
+            oki_tbl[{oki_tbl_w1, ioctl_addr[9:0]}] <= ioctl_dout;
         oki_tbl_q <= oki_tbl[{oki_rom_addr[18], oki_rom_addr[9:0]}];
     end
     logic        oki_busy;

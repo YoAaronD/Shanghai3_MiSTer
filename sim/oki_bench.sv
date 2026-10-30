@@ -30,7 +30,8 @@ module oki_bench (
     output logic        prog_ok,
     input  logic        gfx_req,
     input  logic [18:0] gfx_addr,
-    input  logic        oki_bank,       // heberpop-style bank: ROM half for oki_a and oki_b
+    input  logic [1:0]  oki_bank,       // bank select (coin control bits), for oki_a and oki_b
+    input  logic        blk_mode,       // 0: heberpop (bank[0] = ROM A18), 1: blocken (4 x 128 KB at 20000-3FFFF)
     output logic        gfx_ack,
 
     output logic signed [13:0] snd_a,
@@ -55,7 +56,12 @@ module oki_bench (
     end
 
     logic [17:0] rom_a_addr, rom_b_chip;
-    assign rom_b_addr = {oki_bank, rom_b_chip};
+    // same bank mapping as shangha3_board.sv
+    function automatic [18:0] bank_map(input [17:0] chip);
+        if (blk_mode) bank_map = chip[17] ? {oki_bank, chip[16:0]} : {1'b0, chip};
+        else          bank_map = {oki_bank[0], chip};
+    endfunction
+    assign rom_b_addr = bank_map(rom_b_chip);
     logic [7:0]  rom_a_data;
     logic        rom_a_ok;
 
@@ -82,7 +88,7 @@ module oki_bench (
         .prog_addr, .prog_cs, .prog_data(), .prog_ok,
         .gfx_req, .gfx_addr, .gfx_ack, .gfx_data(),
         .z80_addr(16'h0), .z80_cs(1'b0), .z80_data(), .z80_ok(),
-        .oki_rom_addr({oki_bank, rom_a_addr}), .oki_rom_data(rom_a_data), .oki_rom_ok(rom_a_ok),
+        .oki_rom_addr(bank_map(rom_a_addr)), .oki_rom_data(rom_a_data), .oki_rom_ok(rom_a_ok),
         .ch1_addr, .ch1_req, .ch1_dout, .ch1_ready,
         .ch2_addr, .ch2_req, .ch2_dout, .ch2_ready,
         .ch3_addr, .ch3_req, .ch3_din, .ch3_be, .ch3_rnw, .ch3_ready, .ch3_dout,
